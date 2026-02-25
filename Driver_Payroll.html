@@ -888,7 +888,7 @@ function renderTable(section) {
             <td><input class="f-in ${routeMode&&!manualRoute?'input-muted':''}" type="number" placeholder="rate" value="${dayRate}"
               data-s="${section}" data-di="${di}" data-d="${d}"
               ${routeMode&&!manualRoute?'disabled':''}
-              oninput="onDayRateInput(this)" style="width:58px;font-size:10px"></td>
+              onchange="onDayRateInput(this)" style="width:58px;font-size:10px"></td>
             <td class="c-hrs" id="hrs-${section}-${di}-${d}">${hrs}</td>
             <td class="${otCls}" id="ot-${section}-${di}-${d}">${ot}</td>
             <td id="flag-${section}-${di}-${d}">${flagCellHtml(day,section,di,d,drv)}</td>
