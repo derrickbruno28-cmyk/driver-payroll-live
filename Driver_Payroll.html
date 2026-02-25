@@ -143,8 +143,13 @@ input.f-in::placeholder{color:var(--text-faint);font-size:10px;}
 .flag-ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border);}
 .flag-ot{background:var(--orange-bg);color:var(--orange);border:1px solid var(--orange-border);animation:blinkO 2s infinite;}
 .flag-send{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);animation:blinkR 1s infinite;}
+.flag-ovr{background:rgba(45,212,191,.14);color:var(--teal);border:1px solid rgba(45,212,191,.42);}
 .flag-na{color:var(--text-faint);font-family:var(--mono);font-size:9px;}
 .flag-off{background:var(--surface2);color:var(--text-faint);border:1px solid var(--border2);}
+.flag-wrap{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:nowrap;}
+.ovr-btn{border:1px solid var(--border);background:transparent;color:var(--text-muted);font-family:var(--mono);font-size:8px;padding:1px 4px;border-radius:3px;cursor:pointer;line-height:1.2;}
+.ovr-btn:hover{border-color:var(--teal);color:var(--teal);}
+.ovr-btn.active{background:rgba(45,212,191,.14);border-color:rgba(45,212,191,.42);color:var(--teal);}
 @keyframes blinkO{0%,100%{opacity:1}50%{opacity:.55}}
 @keyframes blinkR{0%,100%{box-shadow:0 0 0 0 rgba(232,64,64,.4)}50%{box-shadow:0 0 0 4px rgba(232,64,64,0)}}
 
@@ -247,8 +252,8 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       <div class="sb-info-title">Payroll Rules</div>
       <div class="sb-info-row">Period <span>Sun – Sat</span></div>
       <div class="sb-info-row">Payout <span>Wednesday</span></div>
-      <div class="sb-info-row">OT starts <span>hr 12</span></div>
-      <div class="sb-info-row">OT pay <span>hr 13+</span></div>
+      <div class="sb-info-row">OT starts <span>hr 13</span></div>
+      <div class="sb-info-row">OT pay <span>hr 12+</span></div>
       <div class="sb-info-row">Hard cap <span>hr 14.5</span></div>
     </div>
   </aside>
@@ -517,7 +522,7 @@ function getThisSunday() {
 }
 
 function blankDays() {
-  return Array.from({length:7},()=>({in:'',out:'',_hrs:null,_pay:0,_flag:'off'}));
+  return Array.from({length:7},()=>({in:'',out:'',alertOverride:false,_hrs:null,_pay:0,_flag:'off'}));
 }
 
 function makeDriver(name, flat) {
@@ -566,14 +571,14 @@ function calcHrs(inV,outV) {
 function calcPay(hrs,flat) {
   if(hrs===null||!flat) return 0;
   if(hrs<=12) return Math.min((hrs/12)*flat,flat);
-  if(hrs<13)  return flat;
-  return flat + (Math.min(hrs,14.5)-13)*(flat/12);
+  return flat + (Math.min(hrs,14.5)-12)*(flat/12);
 }
 
-function getFlag(hrs) {
+function getFlag(hrs, alertOverride=false) {
   if(hrs===null) return 'off';
+  if(alertOverride) return 'ovr';
   if(hrs>=14.5)  return 'send';
-  if(hrs>=12)    return 'ot';
+  if(hrs>=13)    return 'ot';
   return 'ok';
 }
 
@@ -584,7 +589,7 @@ function computeDriver(drv,isFlat) {
   } else {
     drv.days.forEach(day=>{
       const hrs=calcHrs(day.in,day.out);
-      day._hrs=hrs; day._pay=calcPay(hrs,drv.flat); day._flag=getFlag(hrs);
+      day._hrs=hrs; day._pay=calcPay(hrs,drv.flat); day._flag=getFlag(hrs, !!day.alertOverride);
     });
   }
   drv._total=drv.days.reduce((a,d)=>a+d._pay,0);
@@ -645,8 +650,18 @@ function flagHtml(flag) {
   if(flag==='ok')   return `<span class="flag flag-ok">✓ OK</span>`;
   if(flag==='ot')   return `<span class="flag flag-ot">⚠ OT</span>`;
   if(flag==='send') return `<span class="flag flag-send">🔴 SEND</span>`;
+  if(flag==='ovr')  return `<span class="flag flag-ovr">OVERRIDE</span>`;
   if(flag==='off')  return `<span class="flag flag-off">OFF</span>`;
   return `<span class="flag-na">—</span>`;
+}
+
+function flagCellHtml(day, section, di, d) {
+  return `<div class="flag-wrap">
+    ${flagHtml(day._flag)}
+    <button class="ovr-btn ${day.alertOverride?'active':''}"
+      title="Override OT/Send alert for this shift"
+      onclick="toggleShiftOverride('${section}',${di},${d})">${day.alertOverride?'OVR ON':'OVR'}</button>
+  </div>`;
 }
 
 function renderTable(section) {
@@ -687,8 +702,8 @@ function renderTable(section) {
           <td class="td-sep c-pay" id="pd-${section}-${di}-${d}">${earned}</td>`;
       } else {
         const hrs=day._hrs!==null?day._hrs.toFixed(2):'—';
-        const ot=day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—';
-        const otCls=day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim';
+        const ot=day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—';
+        const otCls=day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim';
         b+=`<td><input class="t-in" type="text" placeholder="6:00" value="${day.in||''}"
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="in"
               oninput="onTimeInput(this)"></td>
@@ -697,7 +712,7 @@ function renderTable(section) {
               oninput="onTimeInput(this)"></td>
             <td class="c-hrs" id="hrs-${section}-${di}-${d}">${hrs}</td>
             <td class="${otCls}" id="ot-${section}-${di}-${d}">${ot}</td>
-            <td class="td-sep" id="flag-${section}-${di}-${d}">${flagHtml(day._flag)}</td>`;
+            <td class="td-sep" id="flag-${section}-${di}-${d}">${flagCellHtml(day,section,di,d)}</td>`;
       }
     }
     // Flat rate input (for hourly sections — per-driver rate)
@@ -747,7 +762,7 @@ function onTimeInput(el) {
   // Compute as soon as both in and out exist; also clear if out removed
   if(day.in && day.out){
     const hrs=calcHrs(day.in,day.out);
-    day._hrs=hrs; day._pay=calcPay(hrs,drv.flat); day._flag=getFlag(hrs);
+    day._hrs=hrs; day._pay=calcPay(hrs,drv.flat); day._flag=getFlag(hrs, !!day.alertOverride);
   } else {
     day._hrs=null; day._pay=0; day._flag='off';
   }
@@ -758,10 +773,10 @@ function onTimeInput(el) {
   const flagEl=document.getElementById(`flag-${s}-${di}-${d}`);
   if(hrsEl) hrsEl.textContent=day._hrs!==null?day._hrs.toFixed(2):'—';
   if(otEl){
-    otEl.textContent=day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—';
-    otEl.className=day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim';
+    otEl.textContent=day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—';
+    otEl.className=day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim';
   }
-  if(flagEl) flagEl.innerHTML=flagHtml(day._flag);
+  if(flagEl) flagEl.innerHTML=flagCellHtml(day,s,di,d);
 
   refreshDriverFinal(s,di);
   renderAlerts(s);
@@ -784,13 +799,27 @@ function onFlatInput(el) {
     const flagEl=document.getElementById(`flag-${s}-${di}-${d}`);
     if(hrsEl) hrsEl.textContent=day._hrs!==null?day._hrs.toFixed(2):'—';
     if(otEl){
-      otEl.textContent=day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—';
-      otEl.className=day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim';
+      otEl.textContent=day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—';
+      otEl.className=day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim';
     }
-    if(flagEl) flagEl.innerHTML=flagHtml(day._flag);
+    if(flagEl) flagEl.innerHTML=flagCellHtml(day,s,di,d);
   }
   refreshDriverFinal(s,di);
   renderAlerts(s);
+  updateSidebar();
+  renderSummary();
+  queueSync();
+}
+
+function toggleShiftOverride(section, di, d) {
+  const drv=cw().sections[section][di];
+  const day=drv.days[d];
+  day.alertOverride=!day.alertOverride;
+  day._flag=getFlag(day._hrs, !!day.alertOverride);
+  const flagEl=document.getElementById(`flag-${section}-${di}-${d}`);
+  if(flagEl) flagEl.innerHTML=flagCellHtml(day,section,di,d);
+  refreshDriverFinal(section,di);
+  renderAlerts(section);
   updateSidebar();
   renderSummary();
   queueSync();
