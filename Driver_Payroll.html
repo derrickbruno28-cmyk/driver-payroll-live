@@ -426,6 +426,7 @@ const SECTION_META = {
   memphis: {label:'Memphis TN',  badge:'badge-memphis', ot:true},
 };
 const SECTIONS = ['satx','solo','dallas','memphis'];
+const OT_HOURLY_BY_SECTION = { satx:20, dallas:24, memphis:20 };
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 // solo section uses flat-per-day model (no in/out times)
 const FLAT_SECTIONS = new Set(['solo']);
@@ -433,13 +434,16 @@ const FLAT_SECTIONS = new Set(['solo']);
 const DESTINATION_RATES = {
   corpus: 225,
   houston: 250,
-  mcallen: 300
+  mcallen: 300,
+  okc: 350
 };
 const DESTINATION_LABELS = {
   corpus:'Corpus',
   houston:'Houston',
   mcallen:'McAllen',
-  dallas_ths:'Dallas THS'
+  okc:'OKC',
+  dallas_ths:'Dallas THS',
+  layover:'Layover'
 };
 
 // Default drivers — only Daniel Herrera=260, Gerson=300, Gary White=300, Susana=260 pre-filled
@@ -685,15 +689,16 @@ function calcHrs(inV,outV) {
   let d=o-i; if(d<0)d+=24; return d;
 }
 
-function calcPay(hrs,flat) {
+function calcPay(hrs,flat,section) {
   if(hrs===null||!flat) return 0;
   if(hrs<=12) return Math.min((hrs/12)*flat,flat);
-  return flat + (Math.min(hrs,14.5)-12)*(flat/12);
+  const otRate=OT_HOURLY_BY_SECTION[section]||20;
+  return flat + (Math.min(hrs,14.5)-12)*otRate;
 }
 
 function getDestinationRate(code) {
   if(!code) return 0;
-  if(code==='dallas_ths') return null;
+  if(code==='dallas_ths' || code==='layover') return null;
   return DESTINATION_RATES[code] || 0;
 }
 
@@ -705,7 +710,7 @@ function getFlag(hrs, alertOverride=false) {
   return 'ok';
 }
 
-function computeDriver(drv,isFlat) {
+function computeDriver(drv,isFlat,section) {
   if(isFlat) {
     // Solo: each day pay = flat value (entered per day as flat rate)
     drv.days.forEach(day=>{day._hrs=null;day._pay=drv.flat||0;day._flag='off';});
@@ -717,7 +722,10 @@ function computeDriver(drv,isFlat) {
         day.alertOverride=false;
         day._hrs=null;
         const routeRate=getDestinationRate(day.destination);
-        day._pay=day.destination==='dallas_ths' ? ((drv.flat||0)+75) : routeRate;
+        day._pay=
+          day.destination==='dallas_ths' ? ((drv.flat||0)+75) :
+          day.destination==='layover' ? (day.rateOverride||0) :
+          routeRate;
         day._flag='dest';
         return;
       }
@@ -730,7 +738,7 @@ function computeDriver(drv,isFlat) {
         day._flag='daily';
       } else {
         const hrs=calcHrs(day.in,day.out);
-        day._hrs=hrs; day._pay=calcPay(hrs,baseRate); day._flag=getFlag(hrs, !!day.alertOverride);
+        day._hrs=hrs; day._pay=calcPay(hrs,baseRate,section); day._flag=getFlag(hrs, !!day.alertOverride);
       }
     });
   }
@@ -745,7 +753,7 @@ function computeDriver(drv,isFlat) {
 function computeAll() {
   SECTIONS.forEach(s=>{
     const isFlat=FLAT_SECTIONS.has(s);
-    cw().sections[s].forEach(drv=>computeDriver(drv,isFlat));
+    cw().sections[s].forEach(drv=>computeDriver(drv,isFlat,s));
   });
 }
 
@@ -803,7 +811,10 @@ function flagHtml(flag) {
 
 function destinationSelectHtml(day, section, di, d) {
   const opts = Object.entries(DESTINATION_LABELS).map(([key,label])=>{
-    const rateLabel=key==='dallas_ths' ? '(Daily + $75)' : `($${getDestinationRate(key)})`;
+    const rateLabel=
+      key==='dallas_ths' ? '(Daily + $75)' :
+      key==='layover' ? '(Manual $)' :
+      `($${getDestinationRate(key)})`;
     return `<option value="${key}" ${day.destination===key?'selected':''}>${label} ${rateLabel}</option>`;
   }).join('');
   return `<select class="dest-sel" data-s="${section}" data-di="${di}" data-d="${d}"
@@ -861,6 +872,7 @@ function renderTable(section) {
           <td class="td-sep c-pay" id="pd-${section}-${di}-${d}">${earned}</td>`;
       } else {
         const routeMode=Boolean(day.destination);
+        const manualRoute=day.destination==='layover';
         const hrs=(routeMode||drv.payMode==='daily')?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
         const ot=(routeMode||drv.payMode==='daily')?'—':(day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—');
         const otCls=(routeMode||drv.payMode==='daily')?'c-ot dim':(day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim');
@@ -873,9 +885,9 @@ function renderTable(section) {
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="out"
               ${routeMode?'disabled':''}
               oninput="onTimeInput(this)"></td>
-            <td><input class="f-in ${routeMode?'input-muted':''}" type="number" placeholder="rate" value="${dayRate}"
+            <td><input class="f-in ${routeMode&&!manualRoute?'input-muted':''}" type="number" placeholder="rate" value="${dayRate}"
               data-s="${section}" data-di="${di}" data-d="${d}"
-              ${routeMode?'disabled':''}
+              ${routeMode&&!manualRoute?'disabled':''}
               oninput="onDayRateInput(this)" style="width:58px;font-size:10px"></td>
             <td class="c-hrs" id="hrs-${section}-${di}-${d}">${hrs}</td>
             <td class="${otCls}" id="ot-${section}-${di}-${d}">${ot}</td>
@@ -935,7 +947,7 @@ function onTimeInput(el) {
   day[field]=el.value;
 
   if(drv.payMode==='daily'){
-    computeDriver(drv,false);
+    computeDriver(drv,false,s);
     for(let i=0;i<7;i++){
       const cur=drv.days[i];
       const hrsEl=document.getElementById(`hrs-${s}-${di}-${i}`);
@@ -957,7 +969,7 @@ function onTimeInput(el) {
   const baseRate=day.rateOverride!=null ? day.rateOverride : drv.flat;
   if(day.in && day.out){
     const hrs=calcHrs(day.in,day.out);
-    day._hrs=hrs; day._pay=calcPay(hrs,baseRate); day._flag=getFlag(hrs, !!day.alertOverride);
+    day._hrs=hrs; day._pay=calcPay(hrs,baseRate,s); day._flag=getFlag(hrs, !!day.alertOverride);
   } else {
     day._hrs=null; day._pay=0; day._flag='off';
   }
@@ -985,7 +997,7 @@ function onFlatInput(el) {
   const drv=cw().sections[s][di];
   drv.flat=parseFloat(el.value)||null;
   // Recompute all days for this driver
-  computeDriver(drv,false);
+  computeDriver(drv,false,s);
   // Re-render all computed cells for this driver
   for(let d=0;d<7;d++){
     const day=drv.days[d];
@@ -1015,10 +1027,10 @@ function onDayRateInput(el) {
   const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d;
   const drv=cw().sections[s][di];
   const day=drv.days[d];
-  if(day.destination) return;
+  if(day.destination && day.destination!=='layover') return;
   const val=parseFloat(el.value);
   day.rateOverride=Number.isFinite(val)?val:null;
-  computeDriver(drv,false);
+  computeDriver(drv,false,s);
   renderTable(s);
   renderAlerts(s);
   updateSidebar();
@@ -1037,7 +1049,7 @@ function onDestinationChange(el) {
     day.out='';
     day.alertOverride=false;
   }
-  computeDriver(drv,false);
+  computeDriver(drv,false,s);
   renderTable(s);
   renderAlerts(s);
   updateSidebar();
@@ -1056,7 +1068,7 @@ function toggleDriverPayMode(el) {
   const s=el.dataset.s, di=+el.dataset.di;
   const drv=cw().sections[s][di];
   drv.payMode=drv.payMode==='daily'?'hourly':'daily';
-  computeDriver(drv,false);
+  computeDriver(drv,false,s);
   renderTable(s);
   renderAlerts(s);
   updateSidebar();
@@ -1279,7 +1291,7 @@ function calcOTPremiumForWeek(w) {
     (drv.days||[]).forEach(day=>{
       if(day.destination||drv.payMode==='daily') return;
       if(day._hrs===null||!drv.flat||day._hrs<=12) return;
-      premium += (Math.min(day._hrs,14.5)-12) * (drv.flat/12);
+      premium += (Math.min(day._hrs,14.5)-12) * (OT_HOURLY_BY_SECTION[s]||20);
     });
   }));
   return premium;
@@ -1292,7 +1304,7 @@ function getWeekRollup(w) {
   SECTIONS.forEach(s=>{
     const isFlat=FLAT_SECTIONS.has(s);
     (w.sections[s]||[]).forEach(drv=>{
-      computeDriver(drv,isFlat);
+      computeDriver(drv,isFlat,s);
       driverPay += drv._total||0;
       totalsByDriver.set(drv.name,(totalsByDriver.get(drv.name)||0)+(drv._total||0));
       (drv.days||[]).forEach(day=>{
