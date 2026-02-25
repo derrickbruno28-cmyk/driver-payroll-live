@@ -200,6 +200,18 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
 .badge-solo{background:rgba(167,139,250,.15);color:var(--purple);}
 .badge-dallas{background:rgba(46,204,113,.15);color:var(--green);}
 .badge-memphis{background:rgba(45,212,191,.15);color:var(--teal);}
+.dash-signals{list-style:none;display:grid;gap:7px;padding-left:0;}
+.dash-signals li{padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);font-size:11px;color:var(--text-muted);}
+.dash-note-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+.dash-note-item{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:10px;}
+.dash-note-head{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:6px;}
+.dash-note-item textarea{width:100%;min-height:64px;resize:vertical;background:var(--surface3);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:11px;padding:7px 8px;border-radius:5px;outline:none;}
+.dash-note-item textarea:focus{border-color:var(--accent);}
+.dash-note-meta{margin-top:5px;font-family:var(--mono);font-size:9px;color:var(--text-faint);}
+.due-chip{font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:999px;border:1px solid;}
+.due-chip.ok{color:var(--green);background:var(--green-bg);border-color:var(--green-border);}
+.due-chip.warn{color:var(--orange);background:var(--orange-bg);border-color:var(--orange-border);}
+.due-chip.late{color:var(--red);background:var(--red-bg);border-color:var(--red-border);}
 
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:1000;align-items:center;justify-content:center;}
 .modal-overlay.open{display:flex;}
@@ -252,6 +264,7 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       <button class="nav-item" onclick="switchView('memphis',this)"><span class="nav-pip pip-memphis"></span>Memphis TN</button>
       <button class="nav-item" onclick="switchView('tasks',this)"><span class="nav-pip pip-tasks"></span>Task Pay</button>
       <button class="nav-item" onclick="switchView('summary',this)"><span class="nav-pip pip-summary"></span>Summary</button>
+      <button class="nav-item" onclick="switchView('dashboard',this)"><span class="nav-pip pip-satx"></span>Dashboard</button>
     </div>
     <div class="sb-block">
       <div class="sb-head">This Week</div>
@@ -364,6 +377,42 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
         </table>
       </div>
     </div>
+
+    <!-- DASHBOARD -->
+    <div class="view" id="view-dashboard">
+      <div class="view-head"><div><div class="view-title">Business Dashboard</div><div class="view-sub">Week-over-week payroll trends, cost signals, and daily insight notes</div></div></div>
+      <div class="sum-cards">
+        <div class="sum-card"><div class="sum-card-label">Total Payout (This Week)</div><div class="sum-card-val green" id="dash-total">$0.00</div></div>
+        <div class="sum-card"><div class="sum-card-label">WoW Change</div><div class="sum-card-val" id="dash-wow">$0.00</div></div>
+        <div class="sum-card"><div class="sum-card-label">Estimated OT Premium</div><div class="sum-card-val orange" id="dash-ot-premium">$0.00</div></div>
+        <div class="sum-card"><div class="sum-card-label">Task Share</div><div class="sum-card-val" id="dash-task-share">0%</div></div>
+      </div>
+      <div class="sum-tbl-wrap" style="margin-bottom:14px">
+        <table>
+          <thead><tr><th>Driver</th><th style="text-align:right;padding-right:12px">This Week</th><th style="text-align:right;padding-right:12px">Last Week</th><th style="text-align:right;padding-right:12px">Delta</th></tr></thead>
+          <tbody id="dash-top-tbody"></tbody>
+        </table>
+      </div>
+      <div class="sum-tbl-wrap" style="margin-bottom:14px">
+        <table>
+          <thead><tr><th>Week</th><th style="text-align:right;padding-right:12px">Total Payout</th><th style="text-align:right;padding-right:12px">WoW Delta</th><th style="text-align:right;padding-right:12px">Task Pay</th></tr></thead>
+          <tbody id="dash-trend-tbody"></tbody>
+        </table>
+      </div>
+      <div class="task-form" style="margin-bottom:14px">
+        <div class="task-form-title">Cost Signals</div>
+        <ul class="dash-signals" id="dash-signals"></ul>
+      </div>
+      <div class="task-form">
+        <div class="view-head" style="border-bottom:none;padding-bottom:0;margin-bottom:10px">
+          <div>
+            <div class="task-form-title" style="margin-bottom:2px">Daily Insights (Due by 5:00 PM)</div>
+            <div class="view-sub" id="dash-due-status">Track notes for each day before close of business.</div>
+          </div>
+        </div>
+        <div class="dash-note-grid" id="dash-notes-grid"></div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -450,6 +499,43 @@ let pendingSync = false;
 
 function cw() { return weeks[curIdx]; }
 
+function blankDashboardNotes() {
+  return Array.from({length:7},()=>({text:'',updatedAt:''}));
+}
+
+function ensureWeekShape(w) {
+  if(!w.dashboardNotes || !Array.isArray(w.dashboardNotes)) w.dashboardNotes = blankDashboardNotes();
+  if(w.dashboardNotes.length<7){
+    const missing=7-w.dashboardNotes.length;
+    w.dashboardNotes.push(...Array.from({length:missing},()=>({text:'',updatedAt:''})));
+  }
+  SECTIONS.forEach(s=>{
+    if(!w.sections[s]) w.sections[s]=[];
+    w.sections[s].forEach(d=>{
+      if(!d.payMode) d.payMode='hourly';
+      if(!Array.isArray(d.days)) d.days=blankDays();
+      if(d.days.length<7){
+        d.days.push(...Array.from({length:7-d.days.length},()=>({in:'',out:'',destination:'',note:'',alertOverride:false,_hrs:null,_pay:0,_flag:'off'})));
+      }
+      d.days.forEach(day=>{
+        if(typeof day.in!=='string') day.in='';
+        if(typeof day.out!=='string') day.out='';
+        if(typeof day.note!=='string') day.note='';
+        if(typeof day.destination!=='string') day.destination='';
+        if(typeof day.alertOverride!=='boolean') day.alertOverride=false;
+      });
+    });
+  });
+}
+
+function normalizeState() {
+  if(!Array.isArray(weeks)) weeks=[];
+  weeks.forEach(ensureWeekShape);
+  if(!weeks.length) weeks.push(makeWeek(getThisSunday()));
+  if(curIdx>=weeks.length) curIdx=weeks.length-1;
+  if(curIdx<0) curIdx=0;
+}
+
 function setLiveStatus(mode, text) {
   const el = document.getElementById('live-status');
   const txt = document.getElementById('live-status-text');
@@ -471,6 +557,7 @@ function applySharedState(state) {
   if (!state || !Array.isArray(state.weeks) || !state.weeks.length) return false;
   applyingRemote = true;
   weeks = state.weeks;
+  normalizeState();
   if (curIdx >= weeks.length) curIdx = weeks.length - 1;
   if (curIdx < 0) curIdx = 0;
   renderAll();
@@ -554,7 +641,7 @@ function makeDriver(name, flat) {
 }
 
 function makeWeek(sundayYMD) {
-  const w = {startSunday:sundayYMD, sections:{}, tasks:[]};
+  const w = {startSunday:sundayYMD, sections:{}, tasks:[], dashboardNotes:blankDashboardNotes()};
   SECTIONS.forEach(s => {
     w.sections[s] = (DEFAULT_DRIVERS[s]||[]).map(d=>makeDriver(d.name,d.flat));
   });
@@ -657,6 +744,7 @@ function computeAll() {
 
 // ─── RENDER ──────────────────────────────────────────────
 function renderAll() {
+  normalizeState();
   updateWeekHeader();
   renderWeekTabs();
   computeAll();
@@ -664,6 +752,7 @@ function renderAll() {
   renderTasks();
   updateSidebar();
   renderSummary();
+  renderDashboard();
   SECTIONS.filter(s=>SECTION_META[s].ot).forEach(s=>renderAlerts(s));
   updateDriverDatalist();
 }
@@ -1154,6 +1243,154 @@ function renderSummary() {
   }).join('');
 }
 
+// ─── DASHBOARD ───────────────────────────────────────────
+function calcOTPremiumForWeek(w) {
+  let premium=0;
+  SECTIONS.forEach(s=>(w.sections[s]||[]).forEach(drv=>{
+    (drv.days||[]).forEach(day=>{
+      if(day.destination||drv.payMode==='daily') return;
+      if(day._hrs===null||!drv.flat||day._hrs<=12) return;
+      premium += (Math.min(day._hrs,14.5)-12) * (drv.flat/12);
+    });
+  }));
+  return premium;
+}
+
+function getWeekRollup(w) {
+  ensureWeekShape(w);
+  let driverPay=0, taskPay=0, otCount=0, sendCount=0, routeSpend=0;
+  const totalsByDriver=new Map();
+  SECTIONS.forEach(s=>{
+    const isFlat=FLAT_SECTIONS.has(s);
+    (w.sections[s]||[]).forEach(drv=>{
+      computeDriver(drv,isFlat);
+      driverPay += drv._total||0;
+      totalsByDriver.set(drv.name,(totalsByDriver.get(drv.name)||0)+(drv._total||0));
+      (drv.days||[]).forEach(day=>{
+        if(day._flag==='ot') otCount++;
+        if(day._flag==='send') sendCount++;
+        if(day.destination) routeSpend += day._pay||0;
+      });
+    });
+  });
+  (w.tasks||[]).forEach(t=>{
+    const pay=t.pay||0;
+    taskPay += pay;
+    const name=t.driver||'Unknown';
+    totalsByDriver.set(name,(totalsByDriver.get(name)||0)+pay);
+  });
+  return {
+    total: driverPay+taskPay,
+    driverPay,
+    taskPay,
+    otCount,
+    sendCount,
+    routeSpend,
+    otPremium:calcOTPremiumForWeek(w),
+    totalsByDriver
+  };
+}
+
+function fmtMoney(n){ return `$${(n||0).toFixed(2)}`; }
+
+function renderDashboard() {
+  const current=getWeekRollup(cw());
+  const prev=curIdx>0 ? getWeekRollup(weeks[curIdx-1]) : null;
+  const wowDelta = prev ? (current.total - prev.total) : 0;
+  const wowPct = prev && prev.total>0 ? ((wowDelta/prev.total)*100) : 0;
+
+  document.getElementById('dash-total').textContent=fmtMoney(current.total);
+  document.getElementById('dash-wow').textContent=prev?`${wowDelta>=0?'+':''}${fmtMoney(wowDelta)} (${wowPct>=0?'+':''}${wowPct.toFixed(1)}%)`:'—';
+  document.getElementById('dash-wow').className=`sum-card-val ${wowDelta>0?'red':wowDelta<0?'green':''}`;
+  document.getElementById('dash-ot-premium').textContent=fmtMoney(current.otPremium);
+  const taskShare = current.total>0 ? (current.taskPay/current.total)*100 : 0;
+  document.getElementById('dash-task-share').textContent=`${taskShare.toFixed(1)}%`;
+
+  const prevMap=prev?prev.totalsByDriver:new Map();
+  const topRows=[...current.totalsByDriver.entries()]
+    .sort((a,b)=>b[1]-a[1])
+    .slice(0,10)
+    .map(([name,total])=>{
+      const last=prevMap.get(name)||0;
+      const delta=total-last;
+      return `<tr>
+        <td style="font-weight:700">${name}</td>
+        <td style="text-align:right;padding-right:12px;font-family:var(--mono);color:var(--green)">${fmtMoney(total)}</td>
+        <td style="text-align:right;padding-right:12px;font-family:var(--mono)">${last?fmtMoney(last):'—'}</td>
+        <td style="text-align:right;padding-right:12px;font-family:var(--mono);color:${delta>0?'var(--red)':delta<0?'var(--green)':'var(--text-muted)'}">${delta===0?'—':`${delta>0?'+':''}${fmtMoney(delta)}`}</td>
+      </tr>`;
+    }).join('');
+  document.getElementById('dash-top-tbody').innerHTML=topRows||`<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:14px">No data</td></tr>`;
+
+  const trendStart=Math.max(0,weeks.length-8);
+  const trendRows=[];
+  for(let i=trendStart;i<weeks.length;i++){
+    const roll=getWeekRollup(weeks[i]);
+    const prevRoll=i>0?getWeekRollup(weeks[i-1]):null;
+    const delta=prevRoll?roll.total-prevRoll.total:0;
+    trendRows.push(`<tr>
+      <td style="font-family:var(--mono)">${fmtMed(weeks[i].startSunday)} – ${fmtMed(addDays(weeks[i].startSunday,6))}</td>
+      <td style="text-align:right;padding-right:12px;font-family:var(--mono);color:var(--green)">${fmtMoney(roll.total)}</td>
+      <td style="text-align:right;padding-right:12px;font-family:var(--mono);color:${delta>0?'var(--red)':delta<0?'var(--green)':'var(--text-muted)'}">${i===0?'—':`${delta>0?'+':''}${fmtMoney(delta)}`}</td>
+      <td style="text-align:right;padding-right:12px;font-family:var(--mono);color:var(--orange)">${fmtMoney(roll.taskPay)}</td>
+    </tr>`);
+  }
+  document.getElementById('dash-trend-tbody').innerHTML=trendRows.reverse().join('');
+
+  const signals=[];
+  if(current.otPremium>0) signals.push(`Estimated overtime premium this week is ${fmtMoney(current.otPremium)}. Review long-shift assignments for rebalance opportunities.`);
+  if(current.sendCount>0) signals.push(`${current.sendCount} send-home flags detected. Verify dispatch planning and break coverage to reduce hard-cap exposure.`);
+  if(taskShare>15) signals.push(`Task pay is ${taskShare.toFixed(1)}% of total payout. Audit recurring task items that could be converted to planned routes.`);
+  if(current.routeSpend>0) signals.push(`Route-coded payouts total ${fmtMoney(current.routeSpend)} this week. Compare route profitability against base local dispatch.`);
+  if(!signals.length) signals.push('No major cost anomalies this week. Continue daily note discipline and OT monitoring.');
+  document.getElementById('dash-signals').innerHTML=signals.map(s=>`<li>${s}</li>`).join('');
+
+  renderDashboardNotes();
+}
+
+function getTodayIndexInCurrentWeek() {
+  const today=toYMD(new Date());
+  for(let i=0;i<7;i++) if(addDays(cw().startSunday,i)===today) return i;
+  return -1;
+}
+
+function renderDashboardNotes() {
+  const notes=cw().dashboardNotes||blankDashboardNotes();
+  const now=new Date();
+  const todayIdx=getTodayIndexInCurrentWeek();
+  let dueChip=`<span class="due-chip ok">On Track</span>`;
+  if(todayIdx>=0){
+    const duePassed=now.getHours()>=17;
+    const todayNote=(notes[todayIdx]&&notes[todayIdx].text||'').trim();
+    if(duePassed && !todayNote) dueChip=`<span class="due-chip late">Today overdue</span>`;
+    else if(!todayNote) dueChip=`<span class="due-chip warn">Today pending</span>`;
+  }
+  document.getElementById('dash-due-status').innerHTML=`Each day should include a closing insight by 5:00 PM local time. ${dueChip}`;
+
+  document.getElementById('dash-notes-grid').innerHTML=notes.map((item,idx)=>{
+    const d=addDays(cw().startSunday,idx);
+    const dueClass=(idx===todayIdx && now.getHours()>=17 && !(item.text||'').trim())?'late':'ok';
+    return `<div class="dash-note-item">
+      <div class="dash-note-head">
+        <span>${DAY_LABELS[idx]} ${fmtShort(d)}</span>
+        <span class="due-chip ${dueClass}">${idx===todayIdx?'Due 5PM':'Archive'}</span>
+      </div>
+      <textarea placeholder="Daily insight, issue, cost note, or action..."
+        oninput="onDashboardNoteInput(${idx},this)">${item.text||''}</textarea>
+      <div class="dash-note-meta" id="dash-note-meta-${idx}">${item.updatedAt?`Updated ${new Date(item.updatedAt).toLocaleString()}`:'Not updated yet'}</div>
+    </div>`;
+  }).join('');
+}
+
+function onDashboardNoteInput(idx, el) {
+  const note=cw().dashboardNotes[idx];
+  note.text=el.value;
+  note.updatedAt=new Date().toISOString();
+  const meta=document.getElementById(`dash-note-meta-${idx}`);
+  if(meta) meta.textContent=`Updated ${new Date(note.updatedAt).toLocaleString()}`;
+  queueSync();
+}
+
 // ─── DATALIST ────────────────────────────────────────────
 function updateDriverDatalist() {
   const names=new Set();
@@ -1169,10 +1406,14 @@ function switchWeek(idx) {
 function createNewWeek() {
   const sat=addDays(cw().startSunday,6);
   const nextSun=addDays(sat,1);
-  const w={startSunday:nextSun,sections:{},tasks:[]};
+  const w={startSunday:nextSun,sections:{},tasks:[],dashboardNotes:blankDashboardNotes()};
   // Copy drivers + flat rates from current week
   SECTIONS.forEach(s=>{
-    w.sections[s]=cw().sections[s].map(d=>makeDriver(d.name,d.flat));
+    w.sections[s]=cw().sections[s].map(d=>{
+      const nd=makeDriver(d.name,d.flat);
+      nd.payMode=d.payMode||'hourly';
+      return nd;
+    });
   });
   weeks.push(w);
   curIdx=weeks.length-1;
@@ -1203,6 +1444,7 @@ function switchView(name,btn) {
   document.getElementById(`view-${name}`).classList.add('active');
   btn.classList.add('active');
   if(name==='summary') renderSummary();
+  if(name==='dashboard') renderDashboard();
 }
 
 // ─── MODAL ───────────────────────────────────────────────
@@ -1222,6 +1464,7 @@ document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.targe
 // ─── INIT ────────────────────────────────────────────────
 (function init(){
   weeks.push(makeWeek(getThisSunday()));
+  normalizeState();
   renderAll();
   document.getElementById('t-date').value=toYMD(new Date());
   setupRealtime();
