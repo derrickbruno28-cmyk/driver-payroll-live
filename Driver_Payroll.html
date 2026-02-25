@@ -515,11 +515,17 @@ function ensureWeekShape(w) {
       if(!d.payMode) d.payMode='hourly';
       if(!Array.isArray(d.days)) d.days=blankDays();
       if(d.days.length<7){
-        d.days.push(...Array.from({length:7-d.days.length},()=>({in:'',out:'',destination:'',note:'',alertOverride:false,_hrs:null,_pay:0,_flag:'off'})));
+        d.days.push(...Array.from({length:7-d.days.length},()=>({in:'',out:'',rateOverride:null,destination:'',note:'',alertOverride:false,_hrs:null,_pay:0,_flag:'off'})));
       }
       d.days.forEach(day=>{
         if(typeof day.in!=='string') day.in='';
         if(typeof day.out!=='string') day.out='';
+        if(day.rateOverride!==null && day.rateOverride!==undefined){
+          const rv=parseFloat(day.rateOverride);
+          day.rateOverride=Number.isFinite(rv)?rv:null;
+        } else {
+          day.rateOverride=null;
+        }
         if(typeof day.note!=='string') day.note='';
         if(typeof day.destination!=='string') day.destination='';
         if(typeof day.alertOverride!=='boolean') day.alertOverride=false;
@@ -633,7 +639,7 @@ function getThisSunday() {
 }
 
 function blankDays() {
-  return Array.from({length:7},()=>({in:'',out:'',destination:'',note:'',alertOverride:false,_hrs:null,_pay:0,_flag:'off'}));
+  return Array.from({length:7},()=>({in:'',out:'',rateOverride:null,destination:'',note:'',alertOverride:false,_hrs:null,_pay:0,_flag:'off'}));
 }
 
 function makeDriver(name, flat) {
@@ -715,15 +721,16 @@ function computeDriver(drv,isFlat) {
         day._flag='dest';
         return;
       }
+      const baseRate=day.rateOverride!=null ? day.rateOverride : drv.flat;
       if(drv.payMode==='daily'){
         const hrs=calcHrs(day.in,day.out);
         const worked=Boolean((day.in&&day.in.trim()) || (day.out&&day.out.trim()));
         day._hrs=hrs;
-        day._pay=(worked && drv.flat)?drv.flat:0;
+        day._pay=(worked && baseRate)?baseRate:0;
         day._flag='daily';
       } else {
         const hrs=calcHrs(day.in,day.out);
-        day._hrs=hrs; day._pay=calcPay(hrs,drv.flat); day._flag=getFlag(hrs, !!day.alertOverride);
+        day._hrs=hrs; day._pay=calcPay(hrs,baseRate); day._flag=getFlag(hrs, !!day.alertOverride);
       }
     });
   }
@@ -822,7 +829,7 @@ function renderTable(section) {
   const container=document.getElementById(`tbl-${section}`);
 
   // THEAD
-  const colsPerDay = isFlat ? 2 : 7; // flat: FLAT + EARNED; hourly: IN OUT HRS OT FLAG DEST NOTE
+  const colsPerDay = isFlat ? 2 : 8; // flat: FLAT + EARNED; hourly: IN OUT RATE HRS OT FLAG DEST NOTE
   let h=`<thead><tr>
     <th class="th-name" rowspan="2">Driver</th>`;
   for(let d=0;d<7;d++) h+=`<th class="th-day" colspan="${colsPerDay}">${dayLabel(d)}</th>`;
@@ -831,7 +838,7 @@ function renderTable(section) {
     if(isFlat){
       h+=`<th>Flat $</th><th class="sub-sep">Earned</th>`;
     } else {
-      h+=`<th>In</th><th>Out</th><th>Hrs</th><th>OT Hrs</th><th>Flag</th><th>Route</th><th class="sub-sep">Note</th>`;
+      h+=`<th>In</th><th>Out</th><th>Rate $</th><th>Hrs</th><th>OT Hrs</th><th>Flag</th><th>Route</th><th class="sub-sep">Note</th>`;
     }
   }
   h+=`</tr></thead>`;
@@ -857,6 +864,7 @@ function renderTable(section) {
         const hrs=(routeMode||drv.payMode==='daily')?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
         const ot=(routeMode||drv.payMode==='daily')?'—':(day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—');
         const otCls=(routeMode||drv.payMode==='daily')?'c-ot dim':(day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim');
+        const dayRate=day.rateOverride!=null?day.rateOverride:'';
         b+=`<td><input class="t-in ${routeMode?'input-muted':''}" type="text" placeholder="6:00" value="${routeMode?'':(day.in||'')}"
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="in"
               ${routeMode?'disabled':''}
@@ -865,6 +873,10 @@ function renderTable(section) {
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="out"
               ${routeMode?'disabled':''}
               oninput="onTimeInput(this)"></td>
+            <td><input class="f-in ${routeMode?'input-muted':''}" type="number" placeholder="rate" value="${dayRate}"
+              data-s="${section}" data-di="${di}" data-d="${d}"
+              ${routeMode?'disabled':''}
+              oninput="onDayRateInput(this)" style="width:58px;font-size:10px"></td>
             <td class="c-hrs" id="hrs-${section}-${di}-${d}">${hrs}</td>
             <td class="${otCls}" id="ot-${section}-${di}-${d}">${ot}</td>
             <td id="flag-${section}-${di}-${d}">${flagCellHtml(day,section,di,d,drv)}</td>
@@ -907,7 +919,7 @@ function renderTable(section) {
       b+=`<td></td><td class="td-sep c-pay">$${dt.toFixed(0)}</td>`;
     } else {
       const dt=drivers.reduce((a,drv)=>a+(drv.days[d]._pay||0),0);
-      b+=`<td></td><td></td><td></td><td></td><td class="c-pay">$${dt.toFixed(0)}</td><td></td><td class="td-sep"></td>`;
+      b+=`<td></td><td></td><td></td><td></td><td></td><td class="c-pay">$${dt.toFixed(0)}</td><td></td><td class="td-sep"></td>`;
     }
   }
   b+=`<td><span class="final-cell" style="background:var(--surface2)">$${secTot.toFixed(2)}</span></td><td></td></tr>`;
@@ -942,9 +954,10 @@ function onTimeInput(el) {
   }
 
   // Compute as soon as both in and out exist; also clear if out removed
+  const baseRate=day.rateOverride!=null ? day.rateOverride : drv.flat;
   if(day.in && day.out){
     const hrs=calcHrs(day.in,day.out);
-    day._hrs=hrs; day._pay=calcPay(hrs,drv.flat); day._flag=getFlag(hrs, !!day.alertOverride);
+    day._hrs=hrs; day._pay=calcPay(hrs,baseRate); day._flag=getFlag(hrs, !!day.alertOverride);
   } else {
     day._hrs=null; day._pay=0; day._flag='off';
   }
@@ -995,6 +1008,22 @@ function onFlatInput(el) {
   renderAlerts(s);
   updateSidebar();
   renderSummary();
+  queueSync();
+}
+
+function onDayRateInput(el) {
+  const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d;
+  const drv=cw().sections[s][di];
+  const day=drv.days[d];
+  if(day.destination) return;
+  const val=parseFloat(el.value);
+  day.rateOverride=Number.isFinite(val)?val:null;
+  computeDriver(drv,false);
+  renderTable(s);
+  renderAlerts(s);
+  updateSidebar();
+  renderSummary();
+  renderDashboard();
   queueSync();
 }
 
