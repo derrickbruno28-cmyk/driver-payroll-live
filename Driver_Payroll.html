@@ -620,8 +620,8 @@ function updateWeekHeader() {
   const sat=addDays(w.startSunday,6);
   document.getElementById('week-start-input').value=w.startSunday;
   document.getElementById('week-range-label').textContent=`${fmtMed(w.startSunday)} – ${fmtMed(sat)}`;
-  // Pay date = Wednesday of following week (startSunday + 11 days)
-  const pd=fromYMD(w.startSunday); pd.setDate(pd.getDate()+11);
+  // Pay date = Wednesday of following week (startSunday + 10 days)
+  const pd=fromYMD(w.startSunday); pd.setDate(pd.getDate()+10);
   document.getElementById('paydate-badge').textContent=
     `Pay: ${pd.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}`;
 }
