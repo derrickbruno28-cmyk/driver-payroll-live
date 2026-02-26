@@ -833,11 +833,12 @@ function flagCellHtml(day, section, di, d, drv) {
   const offBtn=`<button class="ovr-btn ${day.explicitOff?'active':''}"
       title="Mark this day as OFF"
       onclick="toggleDayOff('${section}',${di},${d})">OFF</button>`;
-  if(day.explicitOff) return `<div class="flag-wrap">${flagHtml('off')}${offBtn}</div>`;
+  if(day.explicitOff) return `<div class="flag-wrap">${offBtn}</div>`;
   if(day.destination) return `<div class="flag-wrap">${flagHtml('dest')}${offBtn}</div>`;
   if(drv && drv.payMode==='daily') return `<div class="flag-wrap">${flagHtml('daily')}${offBtn}</div>`;
+  const status = day._flag==='off' ? `<span class="flag-na">—</span>` : flagHtml(day._flag);
   return `<div class="flag-wrap">
-    ${flagHtml(day._flag)}
+    ${status}
     <button class="ovr-btn ${day.alertOverride?'active':''}"
       title="Override OT/Send alert for this shift"
       onclick="toggleShiftOverride('${section}',${di},${d})">${day.alertOverride?'OVR ON':'OVR'}</button>
