@@ -63,7 +63,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);min-height:1
 .nav-item.active{background:var(--surface3);color:var(--text);}
 .nav-pip{width:6px;height:6px;border-radius:50%;flex-shrink:0;opacity:.35;}
 .nav-item.active .nav-pip{opacity:1;}
-.pip-satx{background:var(--accent);} .pip-solo{background:var(--purple);} .pip-dallas{background:var(--green);} .pip-memphis{background:var(--teal);} .pip-tasks{background:var(--orange);} .pip-summary{background:var(--red);}
+.pip-satx{background:var(--accent);} .pip-dallas{background:var(--green);} .pip-memphis{background:var(--teal);} .pip-tasks{background:var(--orange);} .pip-summary{background:var(--red);}
 .sb-stat{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 11px;margin-bottom:5px;}
 .sb-stat-label{font-family:var(--mono);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px;}
 .sb-stat-val{font-family:var(--mono);font-size:18px;font-weight:600;}
@@ -197,7 +197,6 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
 .sum-tbl-wrap td{padding:7px 12px;font-size:12px;border-right:1px solid var(--border2);}
 .badge{display:inline-block;padding:2px 7px;border-radius:3px;font-family:var(--mono);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
 .badge-satx{background:rgba(77,163,255,.15);color:var(--accent);}
-.badge-solo{background:rgba(167,139,250,.15);color:var(--purple);}
 .badge-dallas{background:rgba(46,204,113,.15);color:var(--green);}
 .badge-memphis{background:rgba(45,212,191,.15);color:var(--teal);}
 .dash-signals{list-style:none;display:grid;gap:7px;padding-left:0;}
@@ -277,7 +276,6 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
     <div class="sb-block">
       <div class="sb-head">Sections</div>
       <button class="nav-item active" onclick="switchView('satx',this)"><span class="nav-pip pip-satx"></span>SATX Local</button>
-      <button class="nav-item" onclick="switchView('solo',this)"><span class="nav-pip pip-solo"></span>Solo / OTR</button>
       <button class="nav-item" onclick="switchView('dallas',this)"><span class="nav-pip pip-dallas"></span>Dallas</button>
       <button class="nav-item" onclick="switchView('memphis',this)"><span class="nav-pip pip-memphis"></span>Memphis TN</button>
       <button class="nav-item" onclick="switchView('tasks',this)"><span class="nav-pip pip-tasks"></span>Task Pay</button>
@@ -312,16 +310,6 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       <div class="add-driver-bar">
         <input type="text" id="add-satx" placeholder="New driver name..." onkeydown="if(event.key==='Enter')addDriver('satx')">
         <button class="btn btn-primary btn-sm" onclick="addDriver('satx')">＋ Add Driver</button>
-      </div>
-    </div>
-
-    <!-- SOLO -->
-    <div class="view" id="view-solo">
-      <div class="view-head"><div><div class="view-title">Solo / OTR Drivers</div><div class="view-sub">Flat / Miles-based · No OT tracking</div></div></div>
-      <div class="tbl-wrap" id="tbl-solo"></div>
-      <div class="add-driver-bar">
-        <input type="text" id="add-solo" placeholder="New driver name..." onkeydown="if(event.key==='Enter')addDriver('solo')">
-        <button class="btn btn-primary btn-sm" onclick="addDriver('solo')">＋ Add Driver</button>
       </div>
     </div>
 
@@ -449,15 +437,13 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
 // ─── CONSTANTS ───────────────────────────────────────────
 const SECTION_META = {
   satx:    {label:'SATX Local',  badge:'badge-satx',    ot:true},
-  solo:    {label:'Solo/OTR',    badge:'badge-solo',    ot:false},
   dallas:  {label:'Dallas',      badge:'badge-dallas',  ot:true},
   memphis: {label:'Memphis TN',  badge:'badge-memphis', ot:true},
 };
-const SECTIONS = ['satx','solo','dallas','memphis'];
+const SECTIONS = ['satx','dallas','memphis'];
 const OT_HOURLY_BY_SECTION = { satx:20, dallas:24, memphis:20 };
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-// solo section uses flat-per-day model (no in/out times)
-const FLAT_SECTIONS = new Set(['solo']);
+const FLAT_SECTIONS = new Set();
 // Route payout rules.
 const DESTINATION_RATES = {
   corpus: 225,
@@ -497,15 +483,6 @@ const DEFAULT_DRIVERS = {
     {name:'Sergio Castellion', flat:null},
     {name:'Roman Martinez',    flat:null},
     {name:'Jeffrey Brown',     flat:null},
-  ],
-  solo:[
-    {name:'Steven Barnes',      flat:null},
-    {name:'Donje McDonalds',    flat:null},
-    {name:'Laquallys Hollomon', flat:null},
-    {name:'Michael Firsthley',  flat:null},
-    {name:'Kevin Carr',         flat:null},
-    {name:'Tremayne Hardimon',  flat:null},
-    {name:'Latoya Duffie',      flat:null},
   ],
   dallas:[
     {name:'Richard Perez',      flat:null},
@@ -742,7 +719,7 @@ function getFlag(hrs, alertOverride=false) {
 
 function computeDriver(drv,isFlat,section) {
   if(isFlat) {
-    // Solo: each day pay = flat value (entered per day as flat rate)
+    // Flat-mode sections: each day pay = flat value (entered per day as flat rate)
     drv.days.forEach(day=>{day._hrs=null;day._pay=drv.flat||0;day._flag='off';});
   } else {
     if(!drv.payMode) drv.payMode='hourly';
