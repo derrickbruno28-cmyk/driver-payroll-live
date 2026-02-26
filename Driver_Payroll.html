@@ -842,9 +842,10 @@ function renderTable(section) {
   // THEAD
   const colsPerDay = isFlat ? 2 : 8; // flat: FLAT + EARNED; hourly: IN OUT RATE HRS OT FLAG DEST NOTE
   let h=`<thead><tr>
-    <th class="th-name" rowspan="2">Driver</th>`;
+    <th class="th-name" rowspan="2">Driver</th>
+    <th class="th-final" rowspan="2">Final Pay</th>`;
   for(let d=0;d<7;d++) h+=`<th class="th-day" colspan="${colsPerDay}">${dayLabel(d)}</th>`;
-  h+=`<th class="th-final" rowspan="2">Final Pay</th><th class="th-act" rowspan="2"></th></tr><tr>`;
+  h+=`<th class="th-act" rowspan="2"></th></tr><tr>`;
   for(let d=0;d<7;d++){
     if(isFlat){
       h+=`<th>Flat $</th><th class="sub-sep">Earned</th>`;
@@ -858,8 +859,22 @@ function renderTable(section) {
   let b=`<tbody>`;
   drivers.forEach((drv,di)=>{
     const rowCls=SECTION_META[section].ot?(drv._worstFlag==='send'?'row-send':drv._worstFlag==='ot'?'row-ot':''):'';
+    const finalCls=drv._worstFlag==='send'?'send':drv._worstFlag==='ot'?'ot':'';
     b+=`<tr id="row-${section}-${di}" class="${rowCls}">`;
     b+=`<td class="td-name">${drv.name}</td>`;
+    b+=`<td>
+          ${!isFlat?`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
+            <button class="mode-btn ${drv.payMode==='daily'?'active':''}"
+              data-s="${section}" data-di="${di}" title="Toggle hourly vs daily-rate pay"
+              onclick="toggleDriverPayMode(this)">${drv.payMode==='daily'?'DAILY':'HOURLY'}</button>
+            <input class="f-in" type="number" placeholder="rate" value="${drv.flat!=null?drv.flat:''}"
+              data-s="${section}" data-di="${di}" data-field="flat"
+              title="${drv.payMode==='daily'?'Daily rate ($)':'Flat shift rate ($)'}"
+              oninput="onFlatInput(this)" style="width:48px;font-size:10px">
+            <span class="final-cell ${finalCls}" id="final-${section}-${di}">$${(drv._total).toFixed(2)}</span>
+          </div>`:
+          `<span class="final-cell ${finalCls}" id="final-${section}-${di}">$${(drv._total).toFixed(2)}</span>`}
+        </td>`;
     for(let d=0;d<7;d++){
       const day=drv.days[d];
       if(isFlat){
@@ -898,25 +913,6 @@ function renderTable(section) {
               oninput="onDayNoteInput(this)"></td>`;
       }
     }
-    // Flat rate input (for hourly sections — per-driver rate)
-    // For flat sections the per-day input is used above
-    if(!isFlat){
-      // We inject the flat rate as part of the final pay column for compactness
-    }
-    const finalCls=drv._worstFlag==='send'?'send':drv._worstFlag==='ot'?'ot':'';
-    b+=`<td>
-          ${!isFlat?`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
-            <button class="mode-btn ${drv.payMode==='daily'?'active':''}"
-              data-s="${section}" data-di="${di}" title="Toggle hourly vs daily-rate pay"
-              onclick="toggleDriverPayMode(this)">${drv.payMode==='daily'?'DAILY':'HOURLY'}</button>
-            <input class="f-in" type="number" placeholder="rate" value="${drv.flat!=null?drv.flat:''}"
-              data-s="${section}" data-di="${di}" data-field="flat"
-              title="${drv.payMode==='daily'?'Daily rate ($)':'Flat shift rate ($)'}"
-              oninput="onFlatInput(this)" style="width:48px;font-size:10px">
-            <span class="final-cell ${finalCls}" id="final-${section}-${di}">$${(drv._total).toFixed(2)}</span>
-          </div>`:
-          `<span class="final-cell ${finalCls}" id="final-${section}-${di}">$${(drv._total).toFixed(2)}</span>`}
-        </td>`;
     b+=`<td class="td-act"><button class="btn btn-danger btn-icon btn-sm" title="Remove driver"
           onclick="removeDriver('${section}',${di})">✕</button></td>`;
     b+=`</tr>`;
@@ -924,7 +920,7 @@ function renderTable(section) {
 
   // Totals
   const secTot=drivers.reduce((a,d)=>a+(d._total||0),0);
-  b+=`<tr class="totals-row"><td class="td-name">Section Total</td>`;
+  b+=`<tr class="totals-row"><td class="td-name">Section Total</td><td><span class="final-cell" style="background:var(--surface2)">$${secTot.toFixed(2)}</span></td>`;
   for(let d=0;d<7;d++){
     if(isFlat){
       const dt=drivers.reduce((a,drv)=>a+(drv.days[d].flatOverride!=null?+drv.days[d].flatOverride:(drv.flat||0)),0);
@@ -934,7 +930,7 @@ function renderTable(section) {
       b+=`<td></td><td></td><td></td><td></td><td></td><td class="c-pay">$${dt.toFixed(0)}</td><td></td><td class="td-sep"></td>`;
     }
   }
-  b+=`<td><span class="final-cell" style="background:var(--surface2)">$${secTot.toFixed(2)}</span></td><td></td></tr>`;
+  b+=`<td></td></tr>`;
   b+=`</tbody>`;
   container.innerHTML=`<table>${h}${b}</table>`;
 }
