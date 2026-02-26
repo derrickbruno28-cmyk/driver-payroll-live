@@ -1543,7 +1543,11 @@ function showModal(title,body,onConfirm){
   const overlay=document.getElementById('modal-overlay');
   const btn=document.getElementById('modal-confirm');
   modalCb=onConfirm;
-  btn.onclick=()=>{closeModal();if(modalCb)modalCb();};
+  btn.onclick=()=>{
+    const cb=modalCb;
+    closeModal();
+    if(cb) cb();
+  };
   overlay.classList.add('open');
 }
 function closeModal(){document.getElementById('modal-overlay').classList.remove('open');modalCb=null;}
