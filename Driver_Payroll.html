@@ -744,7 +744,9 @@ function computeDriver(drv,isFlat,section) {
         return;
       }
       if(day.payFlag==='daily'){
-        day._pay=rate;
+        const otRate=OT_HOURLY_BY_SECTION[section]||20;
+        const otHours=(hrs!==null && hrs>12)?(Math.min(hrs,14.5)-12):0;
+        day._pay=rate + (otHours*otRate);
         day._flag='daily';
         return;
       }
@@ -915,10 +917,10 @@ function renderTable(section) {
         const routeMode=Boolean(day.destination);
         const manualRoute=day.destination==='layover' || day.destination==='altman_route';
         const disabledDay=routeMode;
-        const modeFlag=day.payFlag==='daily'||day.payFlag==='half'||day.payFlag==='off';
+        const hideOt=day.payFlag==='half'||day.payFlag==='off';
         const hrs=disabledDay?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
-        const ot=(disabledDay||modeFlag)?'—':(day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—');
-        const otCls=(disabledDay||modeFlag)?'c-ot dim':(day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim');
+        const ot=(disabledDay||hideOt)?'—':(day._hrs!==null&&day._hrs>12?(Math.min(day._hrs,14.5)-12).toFixed(2):'—');
+        const otCls=(disabledDay||hideOt)?'c-ot dim':(day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim');
         const dayRate=day.rateOverride!=null?day.rateOverride:'';
         b+=`<td><input class="t-in ${disabledDay?'input-muted':''}" type="text" placeholder="06:00" value="${disabledDay?'':(day.in||'')}"
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="in"
@@ -1099,7 +1101,7 @@ function refreshDriverFinal(s,di) {
 
 function refreshDayCells(s,di,d,drv){
   const day=drv.days[d];
-  const modeFlag=day.payFlag==='daily'||day.payFlag==='half'||day.payFlag==='off';
+  const hideOt=day.payFlag==='half'||day.payFlag==='off';
   const hrsEl=document.getElementById(`hrs-${s}-${di}-${d}`);
   const otEl=document.getElementById(`ot-${s}-${di}-${d}`);
   const flagEl=document.getElementById(`flag-${s}-${di}-${d}`);
@@ -1107,11 +1109,11 @@ function refreshDayCells(s,di,d,drv){
     hrsEl.textContent=day.destination?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
   }
   if(otEl){
-    if(day.destination || modeFlag){
+    if(day.destination || hideOt){
       otEl.textContent='—';
       otEl.className='c-ot dim';
     } else {
-      otEl.textContent=day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—';
+      otEl.textContent=day._hrs!==null&&day._hrs>12?(Math.min(day._hrs,14.5)-12).toFixed(2):'—';
       otEl.className=day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim';
     }
   }
@@ -1278,7 +1280,7 @@ function calcOTPremiumForWeek(w) {
   let premium=0;
   SECTIONS.forEach(s=>(w.sections[s]||[]).forEach(drv=>{
     (drv.days||[]).forEach(day=>{
-      if(day.destination || day.payFlag==='daily' || day.payFlag==='half' || day.payFlag==='off') return;
+      if(day.destination || day.payFlag==='half' || day.payFlag==='off') return;
       if(day._hrs===null||!drv.flat||day._hrs<=12) return;
       premium += (Math.min(day._hrs,14.5)-12) * (OT_HOURLY_BY_SECTION[s]||20);
     });
