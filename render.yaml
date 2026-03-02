@@ -9,6 +9,12 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.14.0
+      - key: STORAGE_MODE
+        value: postgres
+      - key: BACKUP_CRON
+        value: 0 * * * *
+      - key: GOOGLE_SHEETS_BACKUP_TAB
+        value: Backups
       - key: DATA_DIR
         value: /var/data
     disk:

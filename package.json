@@ -9,6 +9,9 @@
   },
   "dependencies": {
     "express": "^4.21.2",
+    "googleapis": "^146.0.0",
+    "node-cron": "^3.0.3",
+    "pg": "^8.13.1",
     "socket.io": "^4.8.1"
   }
 }
