@@ -282,14 +282,14 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       <button class="nav-item active" onclick="switchView('satx',this)"><span class="nav-pip pip-satx"></span>SATX Local</button>
       <button class="nav-item" onclick="switchView('dallas',this)"><span class="nav-pip pip-dallas"></span>Dallas</button>
       <button class="nav-item" onclick="switchView('memphis',this)"><span class="nav-pip pip-memphis"></span>Memphis TN</button>
-      <button class="nav-item" onclick="switchView('tasks',this)"><span class="nav-pip pip-tasks"></span>Task Pay</button>
+      <button class="nav-item" onclick="switchView('tasks',this)"><span class="nav-pip pip-tasks"></span>Miscellaneous / Task Pay</button>
       <button class="nav-item" onclick="switchView('summary',this)"><span class="nav-pip pip-summary"></span>Summary</button>
       <button class="nav-item" onclick="switchView('dashboard',this)"><span class="nav-pip pip-satx"></span>Dashboard</button>
     </div>
     <div class="sb-block">
       <div class="sb-head">This Week</div>
       <div class="sb-stat"><div class="sb-stat-label">Total Payroll</div><div class="sb-stat-val green" id="sb-total">$0</div></div>
-      <div class="sb-stat"><div class="sb-stat-label">Task Pay</div><div class="sb-stat-val" id="sb-task">$0</div></div>
+      <div class="sb-stat"><div class="sb-stat-label">Misc / Task Pay</div><div class="sb-stat-val" id="sb-task">$0</div></div>
       <div class="sb-stat"><div class="sb-stat-label">OT Flags</div><div class="sb-stat-val orange" id="sb-ot">0</div></div>
       <div class="sb-stat"><div class="sb-stat-label">Send Home</div><div class="sb-stat-val red" id="sb-send">0</div></div>
     </div>
@@ -339,11 +339,11 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       </div>
     </div>
 
-    <!-- TASK PAY -->
+    <!-- MISC / TASK PAY -->
     <div class="view" id="view-tasks">
-      <div class="view-head"><div><div class="view-title">Task / Ad-Hoc Pay</div><div class="view-sub">One-off payments, loads, special tasks</div></div></div>
+      <div class="view-head"><div><div class="view-title">Miscellaneous / Task Pay</div><div class="view-sub">One-off payments, loads, special tasks</div></div></div>
       <div class="task-form">
-        <div class="task-form-title">＋ Add Task Payment</div>
+        <div class="task-form-title">＋ Add Miscellaneous / Task Pay</div>
         <div class="form-row">
           <div class="fg sm"><label>Date</label><input type="date" id="t-date"></div>
           <div class="fg wide"><label>Driver</label><input type="text" id="t-driver" placeholder="Driver name" list="all-drivers-dl"><datalist id="all-drivers-dl"></datalist></div>
@@ -368,7 +368,7 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
           <tbody id="task-tbody"><tr><td colspan="7" style="text-align:center;padding:22px;color:var(--text-faint);font-family:var(--mono)">No task payments yet</td></tr></tbody>
         </table>
       </div>
-      <div class="task-total-row">Total Task Pay: <strong id="task-total">$0.00</strong></div>
+      <div class="task-total-row">Total Miscellaneous / Task Pay: <strong id="task-total">$0.00</strong></div>
     </div>
 
     <!-- SUMMARY -->
@@ -377,12 +377,12 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       <div class="sum-cards">
         <div class="sum-card"><div class="sum-card-label">Grand Total</div><div class="sum-card-val green" id="sum-grand">$0.00</div></div>
         <div class="sum-card"><div class="sum-card-label">Driver Pay</div><div class="sum-card-val" id="sum-driver">$0.00</div></div>
-        <div class="sum-card"><div class="sum-card-label">Task Pay</div><div class="sum-card-val orange" id="sum-task">$0.00</div></div>
+        <div class="sum-card"><div class="sum-card-label">Misc / Task Pay</div><div class="sum-card-val orange" id="sum-task">$0.00</div></div>
         <div class="sum-card"><div class="sum-card-label">OT / Send Home</div><div class="sum-card-val red" id="sum-flags">0 / 0</div></div>
       </div>
       <div class="sum-tbl-wrap">
         <table>
-          <thead><tr><th>Driver</th><th>Section</th><th style="text-align:right;padding-right:12px">Weekly Pay</th><th style="text-align:right;padding-right:12px">Task Pay</th><th style="text-align:right;padding-right:12px">Total</th><th>OT Status</th></tr></thead>
+          <thead><tr><th>Driver</th><th>Section</th><th style="text-align:right;padding-right:12px">Weekly Pay</th><th style="text-align:right;padding-right:12px">Misc / Task Pay</th><th style="text-align:right;padding-right:12px">Total</th><th>OT Status</th></tr></thead>
           <tbody id="sum-tbody"></tbody>
         </table>
       </div>
@@ -424,7 +424,7 @@ tr.totals-row td.td-name{font-size:10px;color:var(--text-muted);letter-spacing:.
       </div>
       <div class="sum-tbl-wrap" style="margin-bottom:14px">
         <table>
-          <thead><tr><th>Week</th><th style="text-align:right;padding-right:12px">Total Payout</th><th style="text-align:right;padding-right:12px">WoW Delta</th><th style="text-align:right;padding-right:12px">Task Pay</th></tr></thead>
+          <thead><tr><th>Week</th><th style="text-align:right;padding-right:12px">Total Payout</th><th style="text-align:right;padding-right:12px">WoW Delta</th><th style="text-align:right;padding-right:12px">Misc / Task Pay</th></tr></thead>
           <tbody id="dash-trend-tbody"></tbody>
         </table>
       </div>
@@ -461,8 +461,7 @@ const DESTINATION_LABELS = {
   mcallen:'McAllen',
   okc:'OKC',
   altman_route:'Altman route',
-  dallas_ths:'Dallas THS',
-  layover:'Layover'
+  dallas_ths:'Dallas THS'
 };
 
 // Default drivers — only Daniel Herrera=260, Gerson=300, Gary White=300, Susana=260 pre-filled
@@ -685,17 +684,10 @@ function copyWeekDrivers(fromWeek) {
 // ─── CALCULATION ─────────────────────────────────────────
 function parseTime(s) {
   if(!s||!s.trim()) return null;
-  s=s.trim().toLowerCase().replace(/\s+/,'');
-  let m;
-  m=s.match(/^(\d{1,2}):(\d{2})$/);
-  if(m){let h=+m[1],mn=+m[2];if(h<24&&mn<60)return h+mn/60;}
-  m=s.match(/^(\d{1,2}):(\d{2})(am|pm)$/);
-  if(m){let h=+m[1],mn=+m[2],ap=m[3];if(ap==='am'&&h===12)h=0;if(ap==='pm'&&h!==12)h+=12;return h+mn/60;}
-  m=s.match(/^(\d{1,2})(am|pm)$/);
-  if(m){let h=+m[1],ap=m[2];if(ap==='am'&&h===12)h=0;if(ap==='pm'&&h!==12)h+=12;return h;}
-  m=s.match(/^(\d{1,2})$/);
-  if(m){let h=+m[1];if(h<24)return h;}
-  return null;
+  s=s.trim();
+  const m=s.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if(!m) return null;
+  return (+m[1]) + (+m[2])/60;
 }
 
 function calcHrs(inV,outV) {
@@ -713,7 +705,7 @@ function calcPay(hrs,flat,section) {
 
 function getDestinationRate(code) {
   if(!code) return 0;
-  if(code==='dallas_ths' || code==='layover') return null;
+  if(code==='dallas_ths' || code==='altman_route' || code==='layover') return null;
   return DESTINATION_RATES[code] || 0;
 }
 
@@ -736,6 +728,7 @@ function computeDriver(drv,isFlat,section) {
         const routeRate=getDestinationRate(day.destination);
         day._pay=
           day.destination==='dallas_ths' ? ((drv.flat||0)+75) :
+          day.destination==='altman_route' ? (day.rateOverride||0) :
           day.destination==='layover' ? (day.rateOverride||0) :
           routeRate;
         day._flag='dest';
@@ -835,8 +828,7 @@ function destinationSelectHtml(day, section, di, d) {
   const opts = Object.entries(DESTINATION_LABELS).map(([key,label])=>{
     const rateLabel=
       key==='dallas_ths' ? '(Daily + $75)' :
-      key==='altman_route' ? '(CPM manual / $0 auto)' :
-      key==='layover' ? '(Manual $)' :
+      key==='altman_route' ? '(Manual $ / CPM)' :
       `($${getDestinationRate(key)})`;
     return `<option value="${key}" ${day.destination===key?'selected':''}>${label} ${rateLabel}</option>`;
   }).join('');
@@ -921,19 +913,21 @@ function renderTable(section) {
           <td class="td-sep c-pay" id="pd-${section}-${di}-${d}">${earned}</td>`;
       } else {
         const routeMode=Boolean(day.destination);
-        const manualRoute=day.destination==='layover';
+        const manualRoute=day.destination==='layover' || day.destination==='altman_route';
         const disabledDay=routeMode;
         const modeFlag=day.payFlag==='daily'||day.payFlag==='half'||day.payFlag==='off';
         const hrs=disabledDay?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
         const ot=(disabledDay||modeFlag)?'—':(day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—');
         const otCls=(disabledDay||modeFlag)?'c-ot dim':(day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim');
         const dayRate=day.rateOverride!=null?day.rateOverride:'';
-        b+=`<td><input class="t-in ${disabledDay?'input-muted':''}" type="text" placeholder="6:00" value="${disabledDay?'':(day.in||'')}"
+        b+=`<td><input class="t-in ${disabledDay?'input-muted':''}" type="text" placeholder="06:00" value="${disabledDay?'':(day.in||'')}"
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="in"
+              pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="Use 24-hour format HH:MM (example 06:00 or 18:30)"
               ${disabledDay?'disabled':''}
               oninput="onTimeInput(this)"></td>
             <td><input class="t-in ${disabledDay?'input-muted':''}" type="text" placeholder="18:30" value="${disabledDay?'':(day.out||'')}"
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="out"
+              pattern="([01][0-9]|2[0-3]):[0-5][0-9]" title="Use 24-hour format HH:MM (example 06:00 or 18:30)"
               ${disabledDay?'disabled':''}
               oninput="onTimeInput(this)"></td>
             <td><input class="f-in ${disabledDay&&!manualRoute?'input-muted':''}" type="number" placeholder="rate" value="${dayRate}"
@@ -976,7 +970,13 @@ function onTimeInput(el) {
   const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d, field=el.dataset.field;
   const w=cw(), drv=w.sections[s][di], day=drv.days[d];
   if(day.destination) return;
-  day[field]=el.value;
+  const raw=el.value.trim();
+  day[field]=raw;
+  if(raw && !/^([01]\d|2[0-3]):([0-5]\d)$/.test(raw)){
+    el.style.borderColor='var(--red)';
+  } else {
+    el.style.borderColor='';
+  }
   computeDriver(drv,false,s);
   refreshDayCells(s,di,d,drv);
   refreshDriverFinal(s,di);
@@ -1007,7 +1007,7 @@ function onDayRateInput(el) {
   const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d;
   const drv=cw().sections[s][di];
   const day=drv.days[d];
-  if(day.destination && day.destination!=='layover') return;
+  if(day.destination && day.destination!=='layover' && day.destination!=='altman_route') return;
   const val=parseFloat(el.value);
   day.rateOverride=Number.isFinite(val)?val:null;
   computeDriver(drv,false,s);
