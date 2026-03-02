@@ -155,6 +155,7 @@ input.f-in::placeholder{color:var(--text-faint);font-size:10px;}
 .flag-send{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border);animation:blinkR 1s infinite;}
 .flag-ovr{background:rgba(45,212,191,.14);color:var(--teal);border:1px solid rgba(45,212,191,.42);}
 .flag-daily{background:rgba(77,163,255,.15);color:var(--accent);border:1px solid rgba(77,163,255,.45);}
+.flag-half{background:rgba(167,139,250,.15);color:var(--purple);border:1px solid rgba(167,139,250,.45);}
 .flag-dest{background:rgba(240,165,0,.18);color:var(--orange);border:1px solid var(--orange-border);}
 .flag-na{color:var(--text-faint);font-family:var(--mono);font-size:9px;}
 .flag-off{background:var(--surface2);color:var(--text-faint);border:1px solid var(--border2);}
@@ -459,6 +460,7 @@ const DESTINATION_LABELS = {
   houston:'Houston',
   mcallen:'McAllen',
   okc:'OKC',
+  altman_route:'Altman route',
   dallas_ths:'Dallas THS',
   layover:'Layover'
 };
@@ -525,10 +527,9 @@ function ensureWeekShape(w) {
   SECTIONS.forEach(s=>{
     if(!w.sections[s]) w.sections[s]=[];
     w.sections[s].forEach(d=>{
-      if(!d.payMode) d.payMode='hourly';
       if(!Array.isArray(d.days)) d.days=blankDays();
       if(d.days.length<7){
-        d.days.push(...Array.from({length:7-d.days.length},()=>({in:'',out:'',rateOverride:null,destination:'',note:'',explicitOff:false,alertOverride:false,_hrs:null,_pay:0,_flag:'off'})));
+        d.days.push(...Array.from({length:7-d.days.length},()=>({in:'',out:'',rateOverride:null,destination:'',note:'',payFlag:'',_hrs:null,_pay:0,_flag:'off'})));
       }
       d.days.forEach(day=>{
         if(typeof day.in!=='string') day.in='';
@@ -541,8 +542,8 @@ function ensureWeekShape(w) {
         }
         if(typeof day.note!=='string') day.note='';
         if(typeof day.destination!=='string') day.destination='';
-        if(typeof day.explicitOff!=='boolean') day.explicitOff=false;
-        if(typeof day.alertOverride!=='boolean') day.alertOverride=false;
+        if(typeof day.payFlag!=='string') day.payFlag=day.explicitOff===true?'off':'';
+        if(!['','daily','half','off'].includes(day.payFlag)) day.payFlag='';
       });
     });
   });
@@ -657,11 +658,11 @@ function getThisSunday() {
 }
 
 function blankDays() {
-  return Array.from({length:7},()=>({in:'',out:'',rateOverride:null,destination:'',note:'',explicitOff:false,alertOverride:false,_hrs:null,_pay:0,_flag:'off'}));
+  return Array.from({length:7},()=>({in:'',out:'',rateOverride:null,destination:'',note:'',payFlag:'',_hrs:null,_pay:0,_flag:'off'}));
 }
 
 function makeDriver(name, flat) {
-  return {name, flat: flat??null, payMode:'hourly', days:blankDays(), _total:0, _worstFlag:'ok'};
+  return {name, flat: flat??null, days:blankDays(), _total:0, _worstFlag:'ok'};
 }
 
 function makeWeek(sundayYMD) {
@@ -716,9 +717,8 @@ function getDestinationRate(code) {
   return DESTINATION_RATES[code] || 0;
 }
 
-function getFlag(hrs, alertOverride=false) {
+function getFlag(hrs) {
   if(hrs===null) return 'off';
-  if(alertOverride) return 'ovr';
   if(hrs>=14.5)  return 'send';
   if(hrs>=13)    return 'ot';
   return 'ok';
@@ -729,16 +729,9 @@ function computeDriver(drv,isFlat,section) {
     // Flat-mode sections: each day pay = flat value (entered per day as flat rate)
     drv.days.forEach(day=>{day._hrs=null;day._pay=drv.flat||0;day._flag='off';});
   } else {
-    if(!drv.payMode) drv.payMode='hourly';
     drv.days.forEach(day=>{
-      if(day.explicitOff){
-        day.in=''; day.out=''; day.destination=''; day.alertOverride=false;
-        day._hrs=null; day._pay=0; day._flag='off';
-        return;
-      }
       if(day.destination){
         day.in=''; day.out='';
-        day.alertOverride=false;
         day._hrs=null;
         const routeRate=getDestinationRate(day.destination);
         day._pay=
@@ -748,17 +741,27 @@ function computeDriver(drv,isFlat,section) {
         day._flag='dest';
         return;
       }
+      const hrs=calcHrs(day.in,day.out);
+      day._hrs=hrs;
       const baseRate=day.rateOverride!=null ? day.rateOverride : drv.flat;
-      if(drv.payMode==='daily'){
-        const hrs=calcHrs(day.in,day.out);
-        const worked=Boolean((day.in&&day.in.trim()) || (day.out&&day.out.trim()));
-        day._hrs=hrs;
-        day._pay=(worked && baseRate)?baseRate:0;
-        day._flag=worked?'daily':'off';
-      } else {
-        const hrs=calcHrs(day.in,day.out);
-        day._hrs=hrs; day._pay=calcPay(hrs,baseRate,section); day._flag=getFlag(hrs, !!day.alertOverride);
+      const rate=baseRate||0;
+      if(day.payFlag==='off'){
+        day._pay=0;
+        day._flag='off';
+        return;
       }
+      if(day.payFlag==='daily'){
+        day._pay=rate;
+        day._flag='daily';
+        return;
+      }
+      if(day.payFlag==='half'){
+        day._pay=rate/2;
+        day._flag='half';
+        return;
+      }
+      day._pay=calcPay(hrs,baseRate,section);
+      day._flag=getFlag(hrs);
     });
   }
   drv._total=drv.days.reduce((a,d)=>a+d._pay,0);
@@ -821,8 +824,8 @@ function flagHtml(flag) {
   if(flag==='ok')   return `<span class="flag flag-ok">✓ OK</span>`;
   if(flag==='ot')   return `<span class="flag flag-ot">⚠ OT</span>`;
   if(flag==='send') return `<span class="flag flag-send">🔴 SEND</span>`;
-  if(flag==='ovr')  return `<span class="flag flag-ovr">OVERRIDE</span>`;
   if(flag==='daily') return `<span class="flag flag-daily">DAILY</span>`;
+  if(flag==='half') return `<span class="flag flag-half">HALF</span>`;
   if(flag==='dest') return `<span class="flag flag-dest">ROUTE</span>`;
   if(flag==='off')  return `<span class="flag flag-off">OFF</span>`;
   return `<span class="flag-na">—</span>`;
@@ -832,6 +835,7 @@ function destinationSelectHtml(day, section, di, d) {
   const opts = Object.entries(DESTINATION_LABELS).map(([key,label])=>{
     const rateLabel=
       key==='dallas_ths' ? '(Daily + $75)' :
+      key==='altman_route' ? '(CPM manual / $0 auto)' :
       key==='layover' ? '(Manual $)' :
       `($${getDestinationRate(key)})`;
     return `<option value="${key}" ${day.destination===key?'selected':''}>${label} ${rateLabel}</option>`;
@@ -843,18 +847,26 @@ function destinationSelectHtml(day, section, di, d) {
 }
 
 function flagCellHtml(day, section, di, d, drv) {
-  const offBtn=`<button class="ovr-btn ${day.explicitOff?'active':''}"
+  const routeMode=Boolean(day.destination);
+  const status = routeMode
+    ? flagHtml('dest')
+    : (day.payFlag ? flagHtml(day.payFlag) : (day._flag==='off' ? `<span class="flag-na">—</span>` : flagHtml(day._flag)));
+  const dailyBtn=`<button class="ovr-btn ${day.payFlag==='daily'?'active':''}"
+      title="Pay full daily rate for this day"
+      ${routeMode?'disabled':''}
+      onclick="setDayPayFlag('${section}',${di},${d},'daily')">DAILY</button>`;
+  const halfBtn=`<button class="ovr-btn ${day.payFlag==='half'?'active':''}"
+      title="Pay half daily rate for this day"
+      ${routeMode?'disabled':''}
+      onclick="setDayPayFlag('${section}',${di},${d},'half')">HALF</button>`;
+  const offBtn=`<button class="ovr-btn ${day.payFlag==='off'?'active':''}"
       title="Mark this day as OFF"
-      onclick="toggleDayOff('${section}',${di},${d})">OFF</button>`;
-  if(day.explicitOff) return `<div class="flag-wrap">${offBtn}</div>`;
-  if(day.destination) return `<div class="flag-wrap">${flagHtml('dest')}${offBtn}</div>`;
-  if(drv && drv.payMode==='daily') return `<div class="flag-wrap">${flagHtml('daily')}${offBtn}</div>`;
-  const status = day._flag==='off' ? `<span class="flag-na">—</span>` : flagHtml(day._flag);
+      ${routeMode?'disabled':''}
+      onclick="setDayPayFlag('${section}',${di},${d},'off')">OFF</button>`;
   return `<div class="flag-wrap">
     ${status}
-    <button class="ovr-btn ${day.alertOverride?'active':''}"
-      title="Override OT/Send alert for this shift"
-      onclick="toggleShiftOverride('${section}',${di},${d})">${day.alertOverride?'OVR ON':'OVR'}</button>
+    ${dailyBtn}
+    ${halfBtn}
     ${offBtn}
   </div>`;
 }
@@ -889,12 +901,9 @@ function renderTable(section) {
     b+=`<td class="td-name">${drv.name}</td>`;
     b+=`<td class="td-final">
           ${!isFlat?`<div style="display:flex;align-items:center;gap:4px;justify-content:flex-end">
-            <button class="mode-btn ${drv.payMode==='daily'?'active':''}"
-              data-s="${section}" data-di="${di}" title="Toggle hourly vs daily-rate pay"
-              onclick="toggleDriverPayMode(this)">${drv.payMode==='daily'?'DAILY':'HOURLY'}</button>
             <input class="f-in" type="number" placeholder="rate" value="${drv.flat!=null?drv.flat:''}"
               data-s="${section}" data-di="${di}" data-field="flat"
-              title="${drv.payMode==='daily'?'Daily rate ($)':'Flat shift rate ($)'}"
+              title="Base daily rate ($)"
               oninput="onFlatInput(this)" style="width:48px;font-size:10px">
             <span class="final-cell ${finalCls}" id="final-${section}-${di}">$${(drv._total).toFixed(2)}</span>
           </div>`:
@@ -912,12 +921,12 @@ function renderTable(section) {
           <td class="td-sep c-pay" id="pd-${section}-${di}-${d}">${earned}</td>`;
       } else {
         const routeMode=Boolean(day.destination);
-        const offMode=Boolean(day.explicitOff);
         const manualRoute=day.destination==='layover';
-        const disabledDay=routeMode||offMode;
-        const hrs=(disabledDay||drv.payMode==='daily')?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
-        const ot=(disabledDay||drv.payMode==='daily')?'—':(day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—');
-        const otCls=(disabledDay||drv.payMode==='daily')?'c-ot dim':(day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim');
+        const disabledDay=routeMode;
+        const modeFlag=day.payFlag==='daily'||day.payFlag==='half'||day.payFlag==='off';
+        const hrs=disabledDay?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
+        const ot=(disabledDay||modeFlag)?'—':(day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—');
+        const otCls=(disabledDay||modeFlag)?'c-ot dim':(day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim');
         const dayRate=day.rateOverride!=null?day.rateOverride:'';
         b+=`<td><input class="t-in ${disabledDay?'input-muted':''}" type="text" placeholder="6:00" value="${disabledDay?'':(day.in||'')}"
               data-s="${section}" data-di="${di}" data-d="${d}" data-field="in"
@@ -966,48 +975,10 @@ function renderTable(section) {
 function onTimeInput(el) {
   const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d, field=el.dataset.field;
   const w=cw(), drv=w.sections[s][di], day=drv.days[d];
-  if(day.destination || day.explicitOff) return;
+  if(day.destination) return;
   day[field]=el.value;
-
-  if(drv.payMode==='daily'){
-    computeDriver(drv,false,s);
-    for(let i=0;i<7;i++){
-      const cur=drv.days[i];
-      const hrsEl=document.getElementById(`hrs-${s}-${di}-${i}`);
-      const otEl=document.getElementById(`ot-${s}-${di}-${i}`);
-      const flagEl=document.getElementById(`flag-${s}-${di}-${i}`);
-      if(hrsEl) hrsEl.textContent=cur._hrs!==null?cur._hrs.toFixed(2):'—';
-      if(otEl){otEl.textContent='—';otEl.className='c-ot dim';}
-      if(flagEl) flagEl.innerHTML=flagCellHtml(cur,s,di,i,drv);
-    }
-    refreshDriverFinal(s,di);
-    renderAlerts(s);
-    updateSidebar();
-    renderSummary();
-    queueSync();
-    return;
-  }
-
-  // Compute as soon as both in and out exist; also clear if out removed
-  const baseRate=day.rateOverride!=null ? day.rateOverride : drv.flat;
-  if(day.in && day.out){
-    const hrs=calcHrs(day.in,day.out);
-    day._hrs=hrs; day._pay=calcPay(hrs,baseRate,s); day._flag=getFlag(hrs, !!day.alertOverride);
-  } else {
-    day._hrs=null; day._pay=0; day._flag='off';
-  }
-
-  // Live-update cells
-  const hrsEl=document.getElementById(`hrs-${s}-${di}-${d}`);
-  const otEl=document.getElementById(`ot-${s}-${di}-${d}`);
-  const flagEl=document.getElementById(`flag-${s}-${di}-${d}`);
-  if(hrsEl) hrsEl.textContent=day._hrs!==null?day._hrs.toFixed(2):'—';
-  if(otEl){
-    otEl.textContent=day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—';
-    otEl.className=day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim';
-  }
-  if(flagEl) flagEl.innerHTML=flagCellHtml(day,s,di,d,drv);
-
+  computeDriver(drv,false,s);
+  refreshDayCells(s,di,d,drv);
   refreshDriverFinal(s,di);
   renderAlerts(s);
   updateSidebar();
@@ -1023,21 +994,7 @@ function onFlatInput(el) {
   computeDriver(drv,false,s);
   // Re-render all computed cells for this driver
   for(let d=0;d<7;d++){
-    const day=drv.days[d];
-    const hrsEl=document.getElementById(`hrs-${s}-${di}-${d}`);
-    const otEl=document.getElementById(`ot-${s}-${di}-${d}`);
-    const flagEl=document.getElementById(`flag-${s}-${di}-${d}`);
-    if(hrsEl) hrsEl.textContent=day._hrs!==null?day._hrs.toFixed(2):'—';
-    if(otEl){
-      if(drv.payMode==='daily' || day.destination){
-        otEl.textContent='—';
-        otEl.className='c-ot dim';
-      } else {
-        otEl.textContent=day._hrs!==null&&day._hrs>13?(day._hrs-13).toFixed(2):'—';
-        otEl.className=day._hrs!==null&&day._hrs>13?'c-ot':'c-ot dim';
-      }
-    }
-    if(flagEl) flagEl.innerHTML=flagCellHtml(day,s,di,d,drv);
+    refreshDayCells(s,di,d,drv);
   }
   refreshDriverFinal(s,di);
   renderAlerts(s);
@@ -1050,7 +1007,6 @@ function onDayRateInput(el) {
   const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d;
   const drv=cw().sections[s][di];
   const day=drv.days[d];
-  if(day.explicitOff) return;
   if(day.destination && day.destination!=='layover') return;
   const val=parseFloat(el.value);
   day.rateOverride=Number.isFinite(val)?val:null;
@@ -1067,12 +1023,11 @@ function onDestinationChange(el) {
   const s=el.dataset.s, di=+el.dataset.di, d=+el.dataset.d;
   const drv=cw().sections[s][di];
   const day=drv.days[d];
-  if(day.explicitOff) return;
   day.destination=el.value||'';
   if(day.destination){
     day.in='';
     day.out='';
-    day.alertOverride=false;
+    day.payFlag='';
   }
   computeDriver(drv,false,s);
   renderTable(s);
@@ -1089,45 +1044,14 @@ function onDayNoteInput(el) {
   queueSync();
 }
 
-function toggleDriverPayMode(el) {
-  const s=el.dataset.s, di=+el.dataset.di;
-  const drv=cw().sections[s][di];
-  drv.payMode=drv.payMode==='daily'?'hourly':'daily';
-  computeDriver(drv,false,s);
-  renderTable(s);
-  renderAlerts(s);
-  updateSidebar();
-  renderSummary();
-  queueSync();
-}
-
-function toggleShiftOverride(section, di, d) {
+function setDayPayFlag(section, di, d, flag) {
   const drv=cw().sections[section][di];
   const day=drv.days[d];
-  if(day.destination || day.explicitOff) return;
-  day.alertOverride=!day.alertOverride;
-  day._flag=getFlag(day._hrs, !!day.alertOverride);
-  const flagEl=document.getElementById(`flag-${section}-${di}-${d}`);
-  if(flagEl) flagEl.innerHTML=flagCellHtml(day,section,di,d,drv);
-  refreshDriverFinal(section,di);
-  renderAlerts(section);
-  updateSidebar();
-  renderSummary();
-  queueSync();
-}
-
-function toggleDayOff(section, di, d) {
-  const drv=cw().sections[section][di];
-  const day=drv.days[d];
-  day.explicitOff=!day.explicitOff;
-  if(day.explicitOff){
-    day.in='';
-    day.out='';
-    day.destination='';
-    day.alertOverride=false;
-  }
+  if(day.destination) return;
+  day.payFlag=day.payFlag===flag?'':flag;
   computeDriver(drv,false,section);
-  renderTable(section);
+  refreshDayCells(section,di,d,drv);
+  refreshDriverFinal(section,di);
   renderAlerts(section);
   updateSidebar();
   renderSummary();
@@ -1171,6 +1095,27 @@ function refreshDriverFinal(s,di) {
   const rowEl=document.getElementById(`row-${s}-${di}`);
   if(rowEl&&SECTION_META[s].ot)
     rowEl.className=drv._worstFlag==='send'?'row-send':drv._worstFlag==='ot'?'row-ot':'';
+}
+
+function refreshDayCells(s,di,d,drv){
+  const day=drv.days[d];
+  const modeFlag=day.payFlag==='daily'||day.payFlag==='half'||day.payFlag==='off';
+  const hrsEl=document.getElementById(`hrs-${s}-${di}-${d}`);
+  const otEl=document.getElementById(`ot-${s}-${di}-${d}`);
+  const flagEl=document.getElementById(`flag-${s}-${di}-${d}`);
+  if(hrsEl){
+    hrsEl.textContent=day.destination?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
+  }
+  if(otEl){
+    if(day.destination || modeFlag){
+      otEl.textContent='—';
+      otEl.className='c-ot dim';
+    } else {
+      otEl.textContent=day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—';
+      otEl.className=day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim';
+    }
+  }
+  if(flagEl) flagEl.innerHTML=flagCellHtml(day,s,di,d,drv);
 }
 
 // ─── ADD / REMOVE DRIVERS ─────────────────────────────────
@@ -1333,7 +1278,7 @@ function calcOTPremiumForWeek(w) {
   let premium=0;
   SECTIONS.forEach(s=>(w.sections[s]||[]).forEach(drv=>{
     (drv.days||[]).forEach(day=>{
-      if(day.destination||drv.payMode==='daily') return;
+      if(day.destination || day.payFlag==='daily' || day.payFlag==='half' || day.payFlag==='off') return;
       if(day._hrs===null||!drv.flat||day._hrs<=12) return;
       premium += (Math.min(day._hrs,14.5)-12) * (OT_HOURLY_BY_SECTION[s]||20);
     });
@@ -1505,9 +1450,7 @@ function createNewWeek() {
   // Copy drivers + flat rates from current week
   SECTIONS.forEach(s=>{
     w.sections[s]=cw().sections[s].map(d=>{
-      const nd=makeDriver(d.name,d.flat);
-      nd.payMode=d.payMode||'hourly';
-      return nd;
+      return makeDriver(d.name,d.flat);
     });
   });
   weeks.push(w);
