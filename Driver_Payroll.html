@@ -646,7 +646,11 @@ function fmtShort(ymd) { return fromYMD(ymd).toLocaleDateString('en-US',{month:'
 function fmtMed(ymd) { return fromYMD(ymd).toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 
 function getThisSunday() {
-  const d=new Date(); d.setDate(d.getDate()-d.getDay()); return toYMD(d);
+  // Default to the previous completed payroll week (Sun-Sat).
+  // Example: on Mon 2026-03-02 this returns 2026-02-22.
+  const d=new Date();
+  d.setDate(d.getDate()-d.getDay()-7);
+  return toYMD(d);
 }
 
 function blankDays() {
@@ -747,7 +751,7 @@ function computeDriver(drv,isFlat,section) {
         const worked=Boolean((day.in&&day.in.trim()) || (day.out&&day.out.trim()));
         day._hrs=hrs;
         day._pay=(worked && baseRate)?baseRate:0;
-        day._flag='daily';
+        day._flag=worked?'daily':'off';
       } else {
         const hrs=calcHrs(day.in,day.out);
         day._hrs=hrs; day._pay=calcPay(hrs,baseRate,section); day._flag=getFlag(hrs, !!day.alertOverride);
