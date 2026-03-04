@@ -700,7 +700,7 @@ function calcPay(hrs,flat,section) {
   if(hrs===null||!flat) return 0;
   if(hrs<=12) return Math.min((hrs/12)*flat,flat);
   const otRate=OT_HOURLY_BY_SECTION[section]||20;
-  return flat + (Math.min(hrs,14.5)-12)*otRate;
+  return flat + (hrs-12)*otRate;
 }
 
 function getDestinationRate(code) {
@@ -745,7 +745,7 @@ function computeDriver(drv,isFlat,section) {
       }
       if(day.payFlag==='daily'){
         const otRate=OT_HOURLY_BY_SECTION[section]||20;
-        const otHours=(hrs!==null && hrs>12)?(Math.min(hrs,14.5)-12):0;
+        const otHours=(hrs!==null && hrs>12)?(hrs-12):0;
         day._pay=rate + (otHours*otRate);
         day._flag='daily';
         return;
@@ -919,7 +919,7 @@ function renderTable(section) {
         const disabledDay=routeMode;
         const hideOt=day.payFlag==='half'||day.payFlag==='off';
         const hrs=disabledDay?'—':(day._hrs!==null?day._hrs.toFixed(2):'—');
-        const ot=(disabledDay||hideOt)?'—':(day._hrs!==null&&day._hrs>12?(Math.min(day._hrs,14.5)-12).toFixed(2):'—');
+        const ot=(disabledDay||hideOt)?'—':(day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—');
         const otCls=(disabledDay||hideOt)?'c-ot dim':(day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim');
         const dayRate=day.rateOverride!=null?day.rateOverride:'';
         b+=`<td><input class="t-in ${disabledDay?'input-muted':''}" type="text" placeholder="06:00" value="${disabledDay?'':(day.in||'')}"
@@ -1113,7 +1113,7 @@ function refreshDayCells(s,di,d,drv){
       otEl.textContent='—';
       otEl.className='c-ot dim';
     } else {
-      otEl.textContent=day._hrs!==null&&day._hrs>12?(Math.min(day._hrs,14.5)-12).toFixed(2):'—';
+      otEl.textContent=day._hrs!==null&&day._hrs>12?(day._hrs-12).toFixed(2):'—';
       otEl.className=day._hrs!==null&&day._hrs>12?'c-ot':'c-ot dim';
     }
   }
@@ -1282,7 +1282,7 @@ function calcOTPremiumForWeek(w) {
     (drv.days||[]).forEach(day=>{
       if(day.destination || day.payFlag==='half' || day.payFlag==='off') return;
       if(day._hrs===null||!drv.flat||day._hrs<=12) return;
-      premium += (Math.min(day._hrs,14.5)-12) * (OT_HOURLY_BY_SECTION[s]||20);
+      premium += (day._hrs-12) * (OT_HOURLY_BY_SECTION[s]||20);
     });
   }));
   return premium;
