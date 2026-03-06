@@ -518,6 +518,11 @@ function blankDashboardNotes() {
 }
 
 function ensureWeekShape(w) {
+  if(!w.startSunday || typeof w.startSunday!=='string'){
+    w.startSunday=getThisSunday();
+  } else {
+    w.startSunday=normalizeWeekStart(w.startSunday);
+  }
   if(!w.dashboardNotes || !Array.isArray(w.dashboardNotes)) w.dashboardNotes = blankDashboardNotes();
   if(w.dashboardNotes.length<7){
     const missing=7-w.dashboardNotes.length;
@@ -648,6 +653,17 @@ function addDays(ymd,n) { const d=fromYMD(ymd); d.setDate(d.getDate()+n); return
 function fmtShort(ymd) { return fromYMD(ymd).toLocaleDateString('en-US',{month:'numeric',day:'numeric'}); }
 function fmtMed(ymd) { return fromYMD(ymd).toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 
+// Payroll week anchor must be Sunday.
+// If a Wednesday is entered, treat it as payout date and map back to payroll Sunday (10 days earlier).
+function normalizeWeekStart(ymd) {
+  if(!ymd) return getThisSunday();
+  const d=fromYMD(ymd);
+  const dow=d.getDay();
+  if(dow===0) return ymd;
+  if(dow===3) return addDays(ymd,-10);
+  return addDays(ymd,-dow);
+}
+
 function getThisSunday() {
   // Default to the previous completed payroll week (Sun-Sat).
   // Example: on Mon 2026-03-02 this returns 2026-02-22.
@@ -665,7 +681,7 @@ function makeDriver(name, flat) {
 }
 
 function makeWeek(sundayYMD) {
-  const w = {startSunday:sundayYMD, sections:{}, tasks:[], dashboardNotes:blankDashboardNotes()};
+  const w = {startSunday:normalizeWeekStart(sundayYMD), sections:{}, tasks:[], dashboardNotes:blankDashboardNotes()};
   SECTIONS.forEach(s => {
     w.sections[s] = (DEFAULT_DRIVERS[s]||[]).map(d=>makeDriver(d.name,d.flat));
   });
@@ -1472,7 +1488,7 @@ function confirmDeleteWeek(idx) {
 function onWeekPickerChange() {
   const val=document.getElementById('week-start-input').value;
   if(!val) return;
-  cw().startSunday=val;
+  cw().startSunday=normalizeWeekStart(val);
   renderAll();
   queueSync();
 }
