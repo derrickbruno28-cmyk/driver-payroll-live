@@ -256,7 +256,7 @@ main{min-width:0}
 .app-header{height:auto;position:static;flex-wrap:wrap;padding:12px;gap:10px}.header-center,.header-right{flex-wrap:wrap;gap:6px}.layout{grid-template-columns:minmax(0,1fr)}.sidebar{position:static;height:auto;padding:8px 0}.sidebar .sb-block:first-child{display:flex;overflow-x:auto;margin-bottom:8px}.sidebar .sb-block:first-child .sb-head,.sidebar .sb-info{display:none}.nav-item{width:auto;flex-shrink:0}.sidebar .sb-block:nth-child(2){display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-bottom:0}.sidebar .sb-block:nth-child(2) .sb-head{display:none}.sb-stat{padding:6px}.sb-stat-label{font-size:8px}.sb-stat-val{font-size:14px}main{padding:16px 12px}.add-driver-bar{flex-wrap:wrap}.pbr-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.pbr-week{grid-template-columns:1fr;overflow:visible}.pbr-driver header{align-items:flex-start;flex-wrap:wrap}.lane-card{padding:12px}.lane-card span{font-size:12px}}
 </style>
 </head>
-<body>
+<body><div class="preview-banner">PREVIEW · Synthetic payroll · Changes stay in this browser · No production connection <button onclick="resetPreview()">Reset sample data</button></div>
 
 <div class="modal-overlay" id="modal-overlay">
   <div class="modal-box">
@@ -460,7 +460,7 @@ main{min-width:0}
 </div>
 
 <dialog id="pbr-editor" aria-label="Payroll day editor"></dialog>
-<script src="/socket.io/socket.io.js"></script>
+<script>window.PAYROLL_PREVIEW=true;</script>
 <script>
 // ─── CONSTANTS ───────────────────────────────────────────
 const SECTION_META = {
