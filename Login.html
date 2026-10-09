@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign in · GH Logistics LLC</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#f3f5f8;color:#182335;font-family:system-ui,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}
+    main{background:white;border:1px solid #dfe4eb;border-radius:16px;padding:40px;max-width:440px;width:100%;box-shadow:0 12px 40px #1823350a}.brand{font-size:12px;letter-spacing:2px;font-weight:700;color:#49627c}h1{font-size:28px;margin:24px 0 12px}p{line-height:1.6;color:#536176}a{display:block;text-align:center;background:#182335;color:white;padding:14px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:28px}a[hidden]{display:none}.error{color:#a32929;font-size:14px}.foot{font-size:12px;margin-top:24px}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">GH LOGISTICS LLC</div>
+    <h1>Driver Payroll</h1>
+    <p>Sign in with your company Google account to access payroll.</p>
+    <p id="domain"></p>
+    <p class="error" id="message" role="alert"></p>
+    <a id="signin" href="/auth/google" hidden>Continue with Google</a>
+    <p class="foot">Authorized company accounts only.</p>
+  </main>
+  <script>
+    const messages={domain:'Access is limited to company Google Workspace accounts. Please choose your company account.',expired:'Your sign-in request expired. Please try again.',cancelled:'Sign-in was cancelled. Please try again.',failed:'Sign-in could not be completed. Please try again.'};
+    const message=document.getElementById('message');
+    message.textContent=messages[new URLSearchParams(location.search).get('error')]||'';
+    fetch('/auth/config').then(r=>r.json()).then(config=>{
+      document.getElementById('domain').textContent='Use your @'+config.domain+' email.';
+      document.getElementById('signin').hidden=!config.configured;
+      if(!config.configured) message.textContent='Google sign-in is awaiting administrator setup. Payroll access is locked until setup is complete.';
+    }).catch(()=>{message.textContent='Unable to load sign-in. Please refresh the page.';});
+  </script>
+</body>
+</html>

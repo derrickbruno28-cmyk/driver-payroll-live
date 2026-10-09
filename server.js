@@ -6,6 +6,7 @@ const cron = require('node-cron');
 const { Pool } = require('pg');
 const { google } = require('googleapis');
 const { Server } = require('socket.io');
+const { createAuth } = require('./auth');
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
@@ -16,8 +17,18 @@ const SHEETS_TAB = process.env.GOOGLE_SHEETS_BACKUP_TAB || 'Backups';
 
 const app = express();
 const server = http.createServer(app);
+const auth = createAuth();
 const io = new Server(server, {
-  cors: { origin: '*' }
+  allowRequest: (req, callback) => callback(null,
+    (!req.headers.origin || auth.sameOrigin(req)) && Boolean(auth.session(req)))
+});
+auth.install(app, io);
+io.use((socket, next) => {
+  const session = auth.session(socket.request);
+  if (!session) return next(new Error('Sign in required.'));
+  socket.data.sessionId = session.id;
+  socket.data.expires = session.expires;
+  next();
 });
 
 let pool = null;
@@ -179,7 +190,7 @@ function broadcastPresence() {
   io.emit('presence:update', { count: io.engine.clientsCount });
 }
 
-app.get('/', (_req, res) => {
+app.get(['/', '/Driver_Payroll.html'], auth.requireLogin, (_req, res) => {
   res.sendFile(path.join(__dirname, 'Driver_Payroll.html'));
 });
 
@@ -187,13 +198,13 @@ app.get('/healthz', (_req, res) => {
   res.json({ ok: true, storage: activeStorage });
 });
 
-app.use(express.static(__dirname));
-
 io.on('connection', (socket) => {
+  const expiryTimer = setTimeout(() => socket.disconnect(true), Math.max(0, socket.data.expires - Date.now()));
   socket.emit('state:snapshot', { clientId: socket.id, state: sharedState });
   broadcastPresence();
 
   socket.on('state:update', async (payload) => {
+    if (!auth.session(socket.request)) return socket.disconnect(true);
     if (!payload || !Array.isArray(payload.weeks)) return;
     sharedState = { weeks: payload.weeks };
     try {
@@ -205,6 +216,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    clearTimeout(expiryTimer);
     broadcastPresence();
   });
 });
@@ -217,7 +229,7 @@ async function start() {
     runSheetsBackup('startup');
   }
   server.listen(PORT, () => {
-    console.log(`Driver Payroll live server running on http://localhost:${PORT}`);
+    console.log(`Driver Payroll live server running on http://localhost:${server.address().port}`);
   });
 }
 

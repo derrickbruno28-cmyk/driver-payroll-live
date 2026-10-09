@@ -5,12 +5,20 @@ services:
     plan: starter
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION
         value: 22.14.0
       - key: STORAGE_MODE
         value: postgres
+      - key: APP_BASE_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_ALLOWED_DOMAIN
+        value: ghlogisticsllc.com
       - key: BACKUP_CRON
         value: 0 * * * *
       - key: GOOGLE_SHEETS_BACKUP_TAB

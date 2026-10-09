@@ -9,16 +9,35 @@
 npm install
 ```
 
-3. Start the app:
+3. Configure Google sign-in as described below. For local development, copy `.env.example` to `.env` and fill in the OAuth credentials, then start with Node 22:
 
 ```bash
-npm start
+node --env-file=.env server.js
 ```
 
 4. Open from browser:
 
 - Local: `http://localhost:3000`
-- Team access: `http://<your-computer-ip>:3000`
+- Team access: use the configured HTTPS deployment URL.
+
+## Google Workspace sign-in
+
+Payroll access requires a verified Google Workspace account with both a hosted domain and email domain matching `GOOGLE_ALLOWED_DOMAIN` (default: `ghlogisticsllc.com`). Payout is Friday following the completed Sunday–Saturday payroll week (Sunday + 12 days). Entering a Friday in the week picker selects the payroll week it pays.
+
+1. In your company's Google Cloud project, configure the Google Auth Platform audience as **Internal** for your Workspace organization. See [Google's OpenID Connect setup](https://developers.google.com/identity/openid-connect/openid-connect).
+2. Create an OAuth client with application type **Web application**, named **GH Logistics Driver Payroll**. Add the exact authorized redirect URI: `https://driver-payroll-live.onrender.com/auth/google/callback`. For local development, also add `http://localhost:3000/auth/google/callback`.
+3. Set these environment variables on Render:
+   - `APP_BASE_URL`: `https://driver-payroll-live.onrender.com`.
+   - `GOOGLE_CLIENT_ID`: the web OAuth client ID.
+   - `GOOGLE_CLIENT_SECRET`: the client secret (server environment only; never commit it).
+   - `GOOGLE_ALLOWED_DOMAIN`: the exact company Workspace email domain.
+4. Redeploy, then sign in with a company account. Test that a personal or other-company account cannot access payroll.
+
+The server verifies Google's ID token, including its hosted domain claim; the account chooser's domain hint alone does not grant access. See [Google's token verification guidance](https://developers.google.com/identity/gsi/web/guides/verify-google-id-token).
+
+Missing login configuration locks payroll access. The payroll page and Socket.IO data connections require a session; server source and stored data files are not served. Login uses state, nonce, and PKCE checks, and the session cookie is HttpOnly, SameSite=Lax, and Secure on HTTPS. Sessions expire after eight hours; signing out disconnects live connections. Sessions are stored in server memory, so restarting signs everyone out. Use one Render instance with this implementation; multiple instances would require a shared session store.
+
+Run `npm test` for authentication and payout-date checks. A real Google login requires the credentials and redirect registration above.
 
 ## Notes
 
