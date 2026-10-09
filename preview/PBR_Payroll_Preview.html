@@ -296,7 +296,6 @@ main{min-width:0}
     <div class="sb-block">
       <div class="sb-head">Sections</div>
       <button class="nav-item active" onclick="switchView('satx',this)"><span class="nav-pip pip-satx"></span>SATX Local</button>
-      <button class="nav-item" onclick="switchView('pbr',this)"><span class="nav-pip pip-satx"></span>San Antonio PBR</button>
       <button class="nav-item" onclick="switchView('dallas',this)"><span class="nav-pip pip-dallas"></span>Dallas</button>
       <button class="nav-item" onclick="switchView('memphis',this)"><span class="nav-pip pip-memphis"></span>Memphis TN</button>
       <button class="nav-item" onclick="switchView('tasks',this)"><span class="nav-pip pip-tasks"></span>Miscellaneous / Task Pay</button>
@@ -334,13 +333,6 @@ main{min-width:0}
       </div>
     </div>
 
-    <div class="view" id="view-pbr">
-      <div class="view-head"><div><div class="view-title">San Antonio PBR</div><div class="view-sub">Roundtrip pay · Record on departure day · No daily rate or times required</div></div></div>
-      <div class="pbr-catalog" id="pbr-catalog"></div>
-      <div id="tbl-pbr"></div>
-      <div class="add-driver-bar"><input id="add-pbr" placeholder="New PBR driver name..." onkeydown="if(event.key==='Enter')addDriver('pbr')"><button class="btn btn-primary btn-sm" onclick="addDriver('pbr')">＋ Add Driver</button></div>
-    </div>
-    <!-- DALLAS -->
     <div class="view" id="view-dallas">
       <div class="view-head"><div><div class="view-title">Dallas Drivers</div><div class="view-sub">Flat shift rate · OT tracked</div></div></div>
       <div class="ot-banner" id="ot-banner-dallas"><div class="ot-banner-title">⚠ Overtime Alerts</div><div id="ot-list-dallas"></div></div>
@@ -464,12 +456,11 @@ main{min-width:0}
 <script>
 // ─── CONSTANTS ───────────────────────────────────────────
 const SECTION_META = {
-  pbr: {label:'San Antonio PBR', badge:'badge-satx', ot:false},
   satx:    {label:'SATX Local',  badge:'badge-satx',    ot:true},
   dallas:  {label:'Dallas',      badge:'badge-dallas',  ot:true},
   memphis: {label:'Memphis TN',  badge:'badge-memphis', ot:true},
 };
-const SECTIONS = ['satx','pbr','dallas','memphis'];
+const SECTIONS = ['satx','dallas','memphis'];
 const OT_HOURLY_BY_SECTION = { satx:20, dallas:24, memphis:20 };
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const FLAT_SECTIONS = new Set();
@@ -554,6 +545,13 @@ function blankDashboardNotes() {
 
 function ensureWeekShape(w) {
   if(!w.sections) w.sections={};
+  // Move the retired PBR roster intact; keep separate rows when names repeat.
+  // Clearing the old section makes repeated loads safe without duplicating pay.
+  if(Array.isArray(w.sections.pbr)){
+    if(!Array.isArray(w.sections.satx)) w.sections.satx=[];
+    w.sections.satx.push(...w.sections.pbr);
+    delete w.sections.pbr;
+  }
   if(!Array.isArray(w.tasks)) w.tasks=[];
   if(!w.startSunday || typeof w.startSunday!=='string'){
     w.startSunday=getThisSunday();
@@ -792,7 +790,6 @@ function computeDriver(drv,isFlat,section) {
         day._flag='dest';
         return;
       }
-      if(section==='pbr'){day._hrs=null;day._pay=0;day._flag='off';return;}
       if(day.destination){
         day.in=''; day.out='';
         day._hrs=null;
@@ -831,7 +828,7 @@ function computeDriver(drv,isFlat,section) {
     });
   }
   drv.days.forEach(day=>{
-    if(!day.pbrTrips.length && section!=='pbr'){
+    if(!day.pbrTrips.length){
       day._routePay=day.destination?day._pay:0;
       day._assistPay=day.driverAssist||0;
       day._pay+=day._assistPay;
@@ -945,7 +942,6 @@ function flagCellHtml(day, section, di, d, drv) {
 }
 
 function renderTable(section) {
-  if(section==='pbr'){renderPbrTable();return;}
   const w=cw(), drivers=w.sections[section];
   const isFlat=FLAT_SECTIONS.has(section);
   const container=document.getElementById(`tbl-${section}`);
@@ -1359,7 +1355,7 @@ function calcOTPremiumForWeek(w) {
   let premium=0;
   SECTIONS.forEach(s=>(w.sections[s]||[]).forEach(drv=>{
     (drv.days||[]).forEach(day=>{
-      if(day.destination || day.pbrTrips?.length || s==='pbr' || day.payFlag==='half' || day.payFlag==='off') return;
+      if(day.destination || day.pbrTrips?.length || day.payFlag==='half' || day.payFlag==='off') return;
       if(day._hrs===null||!drv.flat||day._hrs<=12) return;
       premium += (day._hrs-12) * (OT_HOURLY_BY_SECTION[s]||20);
     });
@@ -1614,32 +1610,23 @@ function addDriverTotal(map,name,pay){
 }
 function newPbrTrip(laneId='austin',assistAmount=0){return {id:tripId(),laneId,routeAmount:PBR_LANES[laneId].amount,assistAmount:moneyAmount(assistAmount)};}
 function laneLabel(id){return `San Antonio to ${PBR_LANES[id]?.label||id} PBR`;}
-function renderPbrTable(){
-  document.getElementById('pbr-catalog').innerHTML=Object.entries(PBR_LANES).map(([id,lane])=>`<div class="lane-card"><span>${escapeHtml(laneLabel(id))}</span><strong>${fmtMoney(lane.amount)}</strong><small>Entire roundtrip</small></div>`).join('');
-  const drivers=cw().sections.pbr;
-  document.getElementById('tbl-pbr').innerHTML=drivers.length?drivers.map((drv,di)=>`<article class="pbr-driver">
-    <header><div><h3>${escapeHtml(drv.name)}</h3><span class="view-sub">Pay by route · Departure day</span></div><div><strong>${fmtMoney(drv._total)}</strong> <button class="btn btn-danger btn-sm" onclick="removeDriver('pbr',${di})">Remove</button></div></header>
-    <div class="pbr-week">${drv.days.map((day,d)=>`<div class="pbr-day"><h4>${escapeHtml(dayLabel(d))}</h4>
-      ${day.pbrTrips.map(t=>`<div class="trip-chip"><strong>${escapeHtml(PBR_LANES[t.laneId]?.label||t.laneId)}</strong><span>${fmtMoney(t.routeAmount)}</span>${t.assistAmount?`<small>Assist +${fmtMoney(t.assistAmount)}</small>`:''}</div>`).join('')||'<div class="pbr-empty">No trips</div>'}
-      <button class="btn btn-ghost btn-sm" onclick="openTripPanel('pbr',${di},${d})">${day.pbrTrips.length?'Edit / add trips':'+ Add trip'}</button><div class="pbr-day-total">${fmtMoney(day._pay)}</div></div>`).join('')}</div></article>`).join(''):'<div class="pbr-driver pbr-empty">Add a PBR driver to start recording roundtrips.</div>';
-}
 function resetPreview(){
   if(!PREVIEW)return;
   weeks=[makePreviewWeek()];curIdx=0;dashSelectedWeekIdx=null;
   renderAll();queueSync();
-  switchView('pbr',document.querySelector("[onclick=\"switchView('pbr',this)\"]"));
+  switchView('satx',document.querySelector("[onclick=\"switchView('satx',this)\"]"));
 }
 function makePreviewWeek(){
   const w=makeWeek('2026-10-04');
   w.sections.satx=[makeDriver('Sample Local Driver',260)];
   w.sections.dallas=[];w.sections.memphis=[];
   Object.assign(w.sections.satx[0].days[1],{in:'06:00',out:'18:00',payFlag:'daily',driverAssist:75});
-  w.sections.pbr=[makeDriver('Sample PBR Driver',null),makeDriver('Sample PBR Driver Two',null)];
-  w.sections.pbr[0].days[1].pbrTrips=[newPbrTrip('austin',75),newPbrTrip('houston')];
-  w.sections.pbr[0].days[3].pbrTrips=[newPbrTrip('mcallen',90)];
-  w.sections.pbr[0].days[5].pbrTrips=[newPbrTrip('corpus')];
-  w.sections.pbr[1].days[2].pbrTrips=[newPbrTrip('dallas',75)];
-  w.sections.pbr[1].days[6].pbrTrips=[newPbrTrip('amarillo')];
+  w.sections.satx.push(makeDriver('Sample PBR Driver',null),makeDriver('Sample PBR Driver Two',null));
+  w.sections.satx[1].days[1].pbrTrips=[newPbrTrip('austin',75),newPbrTrip('houston')];
+  w.sections.satx[1].days[3].pbrTrips=[newPbrTrip('mcallen',90)];
+  w.sections.satx[1].days[5].pbrTrips=[newPbrTrip('corpus')];
+  w.sections.satx[2].days[2].pbrTrips=[newPbrTrip('dallas',75)];
+  w.sections.satx[2].days[6].pbrTrips=[newPbrTrip('amarillo')];
   w.tasks=[{id:1,date:'2026-10-06',driver:'Sample Local Driver',type:'Layover',pay:50,load:'Demo',notes:'Sample only'}];return w;
 }
 let tripEditor=null;
@@ -1714,7 +1701,7 @@ function openLocalAssist(section,di,d){
   renderAll();
   document.getElementById('t-date').value=toYMD(new Date());
   setupRealtime();
-  if(PREVIEW){setLiveStatus('offline','Preview · saved locally');switchView('pbr',document.querySelector("[onclick=\"switchView('pbr',this)\"]"));}
+  if(PREVIEW){setLiveStatus('offline','Preview · saved locally');switchView('satx',document.querySelector("[onclick=\"switchView('satx',this)\"]"));}
 })();
 </script>
 </body>
